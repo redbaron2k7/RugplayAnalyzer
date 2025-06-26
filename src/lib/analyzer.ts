@@ -707,47 +707,50 @@ export class CryptoAnalyzer {
         const poolValue = coin.poolBaseCurrencyAmount;
         const poolRatio = coin.poolCoinAmount / coin.circulatingSupply;
 
-        if (poolValue < 10000) {
+        if (poolValue < 1000) {
             warnings.push('Very low liquidity pool - high slippage risk');
-            score -= 30;
+            score -= 20;
             reasoning += 'Very low liquidity pool - high slippage risk';
-        } else if (poolValue < 50000) {
+        } else if (poolValue < 5000) {
             warnings.push('Low liquidity pool - moderate slippage risk');
-            score -= 15;
+            score -= 10;
             reasoning += 'Low liquidity pool - moderate slippage risk';
-        } else if (poolValue < 100000) {
-            warnings.push('Moderate liquidity pool');
-            score -= 5;
+        } else if (poolValue < 10000) {
+            score += 5;
             reasoning += 'Moderate liquidity pool';
         } else {
-            warnings.push('Good liquidity depth');
-            score += 10;
+            score += 15;
             reasoning += 'Good liquidity depth';
         }
 
-        if (poolRatio > 0.5) {
+        if (poolRatio > 0.7) {
             warnings.push('High percentage of tokens in liquidity pool');
             score -= 10;
             reasoning += 'High percentage of tokens in liquidity pool';
-        } else if (poolRatio < 0.01) {
+        } else if (poolRatio < 0.05) {
             warnings.push('Very low percentage of tokens in liquidity pool');
-            score -= 20;
+            score -= 15;
             reasoning += 'Very low percentage of tokens in liquidity pool';
+        } else {
+            score += 10;
+            reasoning += 'Healthy token distribution in liquidity pool';
         }
 
         const volumeToLiquidityRatio = coin.volume24h / poolValue;
-        if (volumeToLiquidityRatio > 10) {
-            warnings.push('Extremely high trading volume relative to liquidity');
-            score -= 15;
-            reasoning += 'Extremely high trading volume relative to liquidity';
-        } else if (volumeToLiquidityRatio > 5) {
+        if (volumeToLiquidityRatio > 5) {
             warnings.push('High trading volume relative to liquidity');
-            score -= 8;
+            score -= 10;
             reasoning += 'High trading volume relative to liquidity';
+        } else if (volumeToLiquidityRatio > 2) {
+            score += 5;
+            reasoning += 'Active trading with sufficient liquidity';
         } else if (volumeToLiquidityRatio < 0.1) {
             warnings.push('Low trading activity relative to available liquidity');
             score -= 5;
             reasoning += 'Low trading activity relative to available liquidity';
+        } else {
+            score += 10;
+            reasoning += 'Healthy trading volume relative to liquidity';
         }
 
         return {
@@ -762,60 +765,42 @@ export class CryptoAnalyzer {
         let score = 50;
         let reasoning = '';
 
-        if (holders.holders.length === 0) {
-            return {
-                score: 0,
-                reasoning: 'No holder data available',
-                risks: ['Unable to assess concentration risk']
-            };
-        }
+        const totalHolders = holders.totalHolders;
+        const totalSupply = holders.holders.reduce((sum, h) => sum + h.balance, 0);
+        const top5Balance = holders.holders.slice(0, 5).reduce((sum, h) => sum + h.balance, 0);
+        const top5Percentage = (top5Balance / totalSupply) * 100;
 
-        const topHolder = holders.holders[0];
-        if (topHolder.percentage > 80) {
-            risks.push('Extreme concentration - single holder owns >80%');
-            score -= 40;
-            reasoning += 'Extreme concentration - single holder owns >80%';
-        } else if (topHolder.percentage > 50) {
-            risks.push('High concentration - single holder owns >50%');
+        if (top5Percentage > 95) {
+            risks.push('Extreme concentration - top 5 holders own >95%');
             score -= 25;
-            reasoning += 'High concentration - single holder owns >50%';
-        } else if (topHolder.percentage > 20) {
-            risks.push('Moderate concentration - top holder owns >20%');
-            score -= 10;
-            reasoning += 'Moderate concentration - top holder owns >20%';
-        } else {
-            risks.push('Good distribution - no single large holder');
-            score += 10;
-            reasoning += 'Good distribution - no single large holder';
-        }
-
-        const top5Percentage = holders.holders.slice(0, 5).reduce((sum, h) => sum + h.percentage, 0);
-        if (top5Percentage > 90) {
-            risks.push('Extreme concentration - top 5 holders own >90%');
-            score -= 30;
-            reasoning += 'Extreme concentration - top 5 holders own >90%';
+            reasoning += 'Extreme concentration - top 5 holders own >95%';
+        } else if (top5Percentage > 85) {
+            risks.push('High concentration - top 5 holders own >85%');
+            score -= 15;
+            reasoning += 'High concentration - top 5 holders own >85%';
         } else if (top5Percentage > 70) {
-            risks.push('High concentration - top 5 holders own >70%');
-            score -= 20;
-            reasoning += 'High concentration - top 5 holders own >70%';
-        } else if (top5Percentage > 50) {
-            risks.push('Moderate concentration - top 5 holders own >50%');
-            score -= 10;
-            reasoning += 'Moderate concentration - top 5 holders own >50%';
+            risks.push('Moderate concentration - top 5 holders own >70%');
+            score -= 5;
+            reasoning += 'Moderate concentration - top 5 holders own >70%';
+        } else {
+            score += 10;
+            reasoning += 'Well-distributed token holdings';
         }
 
-        if (holders.totalHolders < 10) {
+        if (holders.totalHolders < 5) {
             risks.push('Very few total holders');
-            score -= 20;
+            score -= 15;
             reasoning += 'Very few total holders';
-        } else if (holders.totalHolders < 50) {
+        } else if (holders.totalHolders < 20) {
             risks.push('Limited holder base');
-            score -= 10;
+            score -= 5;
             reasoning += 'Limited holder base';
-        } else if (holders.totalHolders > 1000) {
-            risks.push('Large, distributed holder base');
-            score += 10;
+        } else if (holders.totalHolders > 100) {
+            score += 15;
             reasoning += 'Large, distributed holder base';
+        } else {
+            score += 5;
+            reasoning += 'Growing holder base';
         }
 
         return {
@@ -1056,21 +1041,29 @@ ${this.getRecommendationDescription(recommendation)}`;
     ): string[] {
         const opportunities = [];
 
-        if (technical.score > 60) {
+        if (technical.score > 50) {
             opportunities.push('Technical indicators suggest potential upward momentum');
         }
 
-        if (fundamental.score > 60) {
+        if (fundamental.score > 50) {
             opportunities.push('Strong fundamentals provide good long-term potential');
         }
 
-        if (coin.change24h < -20 && technical.score > 40) {
+        if (coin.change24h < -10 && technical.score > 40) {
             opportunities.push('Recent price decline may present buying opportunity if fundamentals remain strong');
         }
 
         const volumeRatio = coin.volume24h / coin.marketCap;
-        if (volumeRatio > 0.1) {
-            opportunities.push('High trading activity indicates strong market interest');
+        if (volumeRatio > 0.05) {
+            opportunities.push('Active trading indicates market interest');
+        }
+
+        if (coin.poolBaseCurrencyAmount > 5000) {
+            opportunities.push('Good liquidity provides stable trading conditions');
+        }
+
+        if (coin.change24h > 5) {
+            opportunities.push('Recent positive price movement shows market confidence');
         }
 
         return opportunities;
