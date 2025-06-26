@@ -21,6 +21,13 @@ interface HolderAnalysis {
     reasoning: string[];
 }
 
+interface RetryConfig {
+    maxRetries: number;
+    initialDelay: number;
+    maxDelay: number;
+    backoffFactor: number;
+}
+
 export class CryptoAnalyzer {
     private minuteData: CoinDetailsResponse = {
         coin: {
@@ -55,24 +62,61 @@ export class CryptoAnalyzer {
         timeframe: '1m'
     };
 
+    private retryConfig: RetryConfig = {
+        maxRetries: 3,
+        initialDelay: 1000,
+        maxDelay: 10000,
+        backoffFactor: 2
+    };
+
     constructor(private apiClient: RugplayApiClient) { }
+
+    private async retryWithBackoff<T>(
+        operation: () => Promise<T>,
+        endpoint: string,
+        attempt: number = 1
+    ): Promise<T> {
+        try {
+            return await operation();
+        } catch (error: any) {
+            const isServerError = error?.response?.status === 500;
+            if (!isServerError || attempt > this.retryConfig.maxRetries) {
+                throw error;
+            }
+
+            const delay = Math.min(
+                this.retryConfig.initialDelay * Math.pow(this.retryConfig.backoffFactor, attempt - 1),
+                this.retryConfig.maxDelay
+            );
+
+            console.warn(`Retry attempt ${attempt} for ${endpoint} after ${delay}ms delay`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            return this.retryWithBackoff(operation, endpoint, attempt + 1);
+        }
+    }
+
+    private async fetchWithRetry<T>(endpoint: string, params?: any, forceRefresh: boolean = false): Promise<T> {
+        return this.retryWithBackoff(
+            () => this.apiClient.get<T>(endpoint, params, forceRefresh),
+            endpoint
+        );
+    }
 
     async analyzeCoin(coinSymbol: string, forceRefresh: boolean = false): Promise<AnalysisResult> {
         try {
-            const [minuteData, hourData, dayData, holders, topCoins, marketData, hopiumData] = await Promise.all([
-                this.apiClient.get<CoinDetailsResponse>(`/coin/${coinSymbol}`, { timeframe: '1m' }, forceRefresh),
-                this.apiClient.get<CoinDetailsResponse>(`/coin/${coinSymbol}`, { timeframe: '1h' }, forceRefresh),
-                this.apiClient.get<CoinDetailsResponse>(`/coin/${coinSymbol}`, { timeframe: '1d' }, forceRefresh),
-                this.apiClient.get<HoldersResponse>(`/holders/${coinSymbol}`, undefined, forceRefresh),
-                this.apiClient.get<TopCoinsResponse>('/top', undefined, forceRefresh),
-                this.apiClient.get<MarketDataResponse>('/market', { search: coinSymbol }, forceRefresh),
-                this.apiClient.get<HopiumResponse>('/hopium', undefined, forceRefresh)
+            const [minuteData, hourData, dayData, holders, topCoins, marketData] = await Promise.all([
+                this.fetchWithRetry<CoinDetailsResponse>(`/coin/${coinSymbol}`, { timeframe: '1m' }, forceRefresh),
+                this.fetchWithRetry<CoinDetailsResponse>(`/coin/${coinSymbol}`, { timeframe: '1h' }, forceRefresh),
+                this.fetchWithRetry<CoinDetailsResponse>(`/coin/${coinSymbol}`, { timeframe: '1d' }, forceRefresh),
+                this.fetchWithRetry<HoldersResponse>(`/holders/${coinSymbol}`, undefined, forceRefresh),
+                this.fetchWithRetry<TopCoinsResponse>('/top', undefined, forceRefresh),
+                this.fetchWithRetry<MarketDataResponse>('/market', { search: coinSymbol }, forceRefresh)
             ]);
 
             this.minuteData = minuteData;
 
             const technical = this.analyzeTechnical(minuteData, hourData, dayData);
-            const sentiment = this.analyzeSentiment(minuteData.coin, hopiumData);
+            const sentiment = this.analyzeSentiment(minuteData.coin);
             const liquidity = this.analyzeLiquidity(minuteData.coin);
             const concentration = this.analyzeConcentration(holders);
             const fundamental = this.analyzeFundamental(minuteData.coin, topCoins, marketData);
@@ -624,7 +668,7 @@ export class CryptoAnalyzer {
         };
     }
 
-    private analyzeSentiment(coin: any, hopiumData: HopiumResponse | null) {
+    private analyzeSentiment(coin: any) {
         const metrics: Record<string, number> = {};
         let score = 50;
         let reasoning = '';
@@ -657,31 +701,6 @@ export class CryptoAnalyzer {
         } else {
             metrics['price_action'] = 2.5;
             reasoning += 'Stable price action';
-        }
-
-        if (hopiumData) {
-            const coinRelatedQuestions = hopiumData.questions.filter(q =>
-                q.question.toLowerCase().includes(coin.symbol.toLowerCase()) ||
-                q.question.toLowerCase().includes(coin.name.toLowerCase())
-            );
-
-            if (coinRelatedQuestions.length > 0) {
-                const avgSentiment = coinRelatedQuestions.reduce((sum, q) => sum + q.yesPercentage, 0) / coinRelatedQuestions.length;
-                metrics['prediction_market_sentiment'] = avgSentiment;
-
-                if (avgSentiment > 70) {
-                    score += 10;
-                    reasoning += 'Prediction markets show bullish sentiment';
-                } else if (avgSentiment < 30) {
-                    score -= 10;
-                    reasoning += 'Prediction markets show bearish sentiment';
-                } else {
-                    reasoning += 'Mixed sentiment in prediction markets';
-                }
-            } else {
-                metrics['prediction_market_sentiment'] = 50;
-                reasoning += 'No specific prediction market data available';
-            }
         }
 
         if (coin.creatorName && coin.creatorName !== 'Anonymous') {

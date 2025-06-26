@@ -2,7 +2,7 @@ import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { GOOGLE_API_KEY } from '$env/static/private';
 import type { AnalysisResult } from '$lib/types';
-import { formatCurrency, formatPercentage } from '$lib/utils';
+import { formatCurrency } from '$lib/utils';
 
 // --- EDIT THIS SYSTEM PROMPT TO CHANGE THE AI'S BEHAVIOR ---
 const SYSTEM_PROMPT = `
