@@ -1,0 +1,38 @@
+{
+	"name": "rugplay-analyzer",
+	"private": true,
+	"version": "0.0.1",
+	"type": "module",
+	"scripts": {
+		"dev": "vite dev",
+		"build": "vite build",
+		"preview": "vite preview",
+		"prepare": "svelte-kit sync || echo ''",
+		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
+	},
+	"devDependencies": {
+		"@sveltejs/adapter-auto": "^6.0.0",
+		"@sveltejs/adapter-node": "^5.2.12",
+		"@sveltejs/kit": "^2.16.0",
+		"@sveltejs/vite-plugin-svelte": "^5.0.0",
+		"@tailwindcss/postcss": "^4.1.10",
+		"@tailwindcss/typography": "^0.5.16",
+		"autoprefixer": "^10.4.21",
+		"svelte": "^5.0.0",
+		"svelte-check": "^4.0.0",
+		"tailwindcss": "^4.1.10",
+		"typescript": "^5.0.0",
+		"vite": "^6.2.6"
+	},
+	"dependencies": {
+		"apexcharts": "^4.7.0",
+		"clsx": "^2.1.1",
+		"lightweight-charts": "^5.0.7",
+		"lucide-svelte": "^0.523.0",
+		"mode-watcher": "^1.0.8",
+		"svelte-apexcharts": "^1.0.2",
+		"svelte-lightweight-charts": "^2.2.0",
+		"tailwind-merge": "^3.3.1"
+	}
+}
