@@ -1,8 +1,8 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
-import type { 
-  RugplayApiClient, 
-  CachedData, 
+import type {
+  RugplayApiClient,
+  CachedData,
   CacheManager,
   TopCoinsResponse,
   MarketDataResponse,
@@ -48,11 +48,11 @@ export function getChangeColor(value: number): string {
 export function formatTimestamp(timestamp: number): string {
   const now = Date.now();
   const diff = now - timestamp;
-  
+
   const minutes = Math.floor(diff / (1000 * 60));
   const hours = Math.floor(diff / (1000 * 60 * 60));
   const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-  
+
   if (minutes < 1) return 'Just now';
   if (minutes < 60) return `${minutes}m ago`;
   if (hours < 24) return `${hours}h ago`;
@@ -60,56 +60,47 @@ export function formatTimestamp(timestamp: number): string {
 }
 
 export function getCoinImageUrl(iconPath: string | null | undefined): string {
-  // Handle null/undefined cases
   if (!iconPath) {
-    return '/rugplay.svg'; // fallback image
+    return '/rugplay.svg';
   }
-  
-  // If it's already a full URL, return as is
+
   if (iconPath.startsWith('http://') || iconPath.startsWith('https://')) {
     return iconPath;
   }
-  
-  // Convert relative path to full Backblaze B2 CDN URL
+
   const baseUrl = 'https://s3.eu-central-003.backblazeb2.com/rugplay/';
-  
-  // Remove leading slash if present
+
   const cleanPath = iconPath.startsWith('/') ? iconPath.slice(1) : iconPath;
-  
+
   return baseUrl + cleanPath;
 }
 
 export function getUserImageUrl(imagePath: string | null | undefined): string {
-  // Handle null/undefined cases
   if (!imagePath) {
-    return '/rugplay.svg'; // fallback image
+    return '/rugplay.svg';
   }
-  
-  // If it's already a full URL, return as is
+
   if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
     return imagePath;
   }
-  
-  // Convert relative path to full Backblaze B2 CDN URL
+
   const baseUrl = 'https://s3.eu-central-003.backblazeb2.com/rugplay/';
-  
-  // Remove leading slash if present
+
   const cleanPath = imagePath.startsWith('/') ? imagePath.slice(1) : imagePath;
-  
+
   return baseUrl + cleanPath;
 }
 
-// Cache Manager Implementation
 export class LocalStorageCacheManager implements CacheManager {
   private prefix = 'rugplay_cache_';
-  
+
   private isClient(): boolean {
     return typeof window !== 'undefined' && typeof localStorage !== 'undefined';
   }
-  
+
   get<T>(key: string): CachedData<T> | null {
     if (!this.isClient()) return null;
-    
+
     try {
       const item = localStorage.getItem(this.prefix + key);
       if (!item) return null;
@@ -118,10 +109,10 @@ export class LocalStorageCacheManager implements CacheManager {
       return null;
     }
   }
-  
+
   set<T>(key: string, data: T): void {
     if (!this.isClient()) return;
-    
+
     try {
       const cachedData: CachedData<T> = {
         data,
@@ -133,26 +124,25 @@ export class LocalStorageCacheManager implements CacheManager {
       console.warn('Failed to cache data:', error);
     }
   }
-  
+
   isStale(key: string, maxAge: number): boolean {
     const cached = this.get(key);
     if (!cached) return true;
     return Date.now() - cached.timestamp > maxAge;
   }
-  
+
   clear(key?: string): void {
     if (!this.isClient()) return;
-    
+
     if (key) {
       localStorage.removeItem(this.prefix + key);
     } else {
-      // Clear all cache entries
       Object.keys(localStorage)
         .filter(k => k.startsWith(this.prefix))
         .forEach(k => localStorage.removeItem(k));
     }
   }
-  
+
   getStats() {
     if (!this.isClient()) {
       return {
@@ -162,16 +152,16 @@ export class LocalStorageCacheManager implements CacheManager {
         newestEntry: 'None'
       };
     }
-    
+
     const keys = Object.keys(localStorage).filter(k => k.startsWith(this.prefix));
     const entries = keys.map(k => {
       const item = localStorage.getItem(k);
       return item ? { key: k, size: item.length, data: JSON.parse(item) } : null;
     }).filter(Boolean);
-    
+
     const totalSize = entries.reduce((sum, entry) => sum + (entry?.size || 0), 0);
     const timestamps = entries.map(e => e?.data.timestamp).filter(Boolean);
-    
+
     return {
       totalEntries: entries.length,
       totalSize: `${(totalSize / 1024).toFixed(2)} KB`,
@@ -183,29 +173,25 @@ export class LocalStorageCacheManager implements CacheManager {
 
 export const cacheManager = new LocalStorageCacheManager();
 
-// Enhanced API Client using local server-side API routes
 export function createApiClient(apiKey: string, useCache: boolean = true): RugplayApiClient {
-  // Use local API routes to avoid CORS issues
   const baseUrl = '/api/v1';
-  
+
   const client = {
     apiKey,
-    
+
     async get<T>(endpoint: string, params?: Record<string, any>, forceRefresh?: boolean): Promise<T> {
       const cacheKey = `${endpoint}_${JSON.stringify(params || {})}_${apiKey}`;
-      const maxAge = 5 * 60 * 1000; // 5 minutes cache
-      
-      // Check cache first (unless force refresh)
+      const maxAge = 5 * 60 * 1000;
+
       if (useCache && !(forceRefresh === true) && !cacheManager.isStale(cacheKey, maxAge)) {
         const cached = cacheManager.get<T>(cacheKey);
         if (cached) {
           return cached.data;
         }
       }
-      
+
       const url = new URL(`${baseUrl}${endpoint}`, window.location.origin);
-      
-      // Add query parameters
+
       if (params) {
         Object.entries(params).forEach(([key, value]) => {
           if (value !== undefined && value !== null) {
@@ -213,7 +199,7 @@ export function createApiClient(apiKey: string, useCache: boolean = true): Rugpl
           }
         });
       }
-      
+
       const response = await fetch(url.toString(), {
         method: 'GET',
         headers: {
@@ -221,19 +207,18 @@ export function createApiClient(apiKey: string, useCache: boolean = true): Rugpl
           'Content-Type': 'application/json'
         }
       });
-      
+
       if (!response.ok) {
         const error = await response.json().catch(() => ({ message: 'Unknown error' }));
         throw new Error(error.message || `API request failed: ${response.statusText}`);
       }
-      
+
       const data = await response.json();
-      
-      // Cache successful responses
+
       if (useCache) {
         cacheManager.set(cacheKey, data);
       }
-      
+
       return data;
     },
 

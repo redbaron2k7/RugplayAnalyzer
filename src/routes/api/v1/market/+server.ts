@@ -10,7 +10,6 @@ export const GET: RequestHandler = async ({ request, url }) => {
 
     const apiKey = authHeader.replace('Bearer ', '');
 
-    // Get and validate query parameters
     const search = url.searchParams.get('search');
     const sortBy = url.searchParams.get('sortBy') || 'marketCap';
     const sortOrder = url.searchParams.get('sortOrder') || 'desc';
@@ -19,7 +18,6 @@ export const GET: RequestHandler = async ({ request, url }) => {
     const page = parseInt(url.searchParams.get('page') || '1', 10);
     const limit = Math.min(parseInt(url.searchParams.get('limit') || '12', 10), 100);
 
-    // Validate parameters
     const validSortBy = ['marketCap', 'currentPrice', 'change24h', 'volume24h', 'createdAt'];
     if (!validSortBy.includes(sortBy)) {
       throw error(400, { message: 'Invalid sortBy parameter' });
@@ -48,7 +46,6 @@ export const GET: RequestHandler = async ({ request, url }) => {
       throw error(400, { message: 'Invalid limit parameter' });
     }
 
-    // Build query string
     const queryParams = new URLSearchParams({
       ...(search && { search }),
       sortBy,
@@ -59,7 +56,6 @@ export const GET: RequestHandler = async ({ request, url }) => {
       limit: limit.toString()
     });
 
-    // Forward request to Rugplay API
     const response = await fetch(`https://rugplay.com/api/v1/market?${queryParams}`, {
       headers: {
         'Authorization': `Bearer ${apiKey}`,

@@ -138,7 +138,7 @@ export class CryptoAnalyzer {
     }
 
     private analyzeRugPullRisk(
-        coin: CoinDetailsResponse['coin'], 
+        coin: CoinDetailsResponse['coin'],
         priceHistory: CandlestickData[],
         holders: HoldersResponse
     ): RugPullAnalysis {
@@ -169,12 +169,12 @@ export class CryptoAnalyzer {
         if (recentPrices.length > 0) {
             const priceChanges = recentPrices.map((p, i) => {
                 if (i === 0) return 0;
-                return ((p.close - recentPrices[i-1].close) / recentPrices[i-1].close) * 100;
+                return ((p.close - recentPrices[i - 1].close) / recentPrices[i - 1].close) * 100;
             });
 
             const maxPump = Math.max(...priceChanges);
             const maxDump = Math.min(...priceChanges);
-            
+
             let pumpPhase = false;
             let dumpPhase = false;
             let totalPump = 0;
@@ -236,7 +236,7 @@ export class CryptoAnalyzer {
         const recentVolumes = volumes.slice(-10);
         const volumeAvg = volumes.reduce((a, b) => a + b, 0) / volumes.length;
         const recentVolumeAvg = recentVolumes.reduce((a, b) => a + b, 0) / recentVolumes.length;
-        const volumeSpikes = recentVolumes.map((v, i) => i === 0 ? 0 : (v / recentVolumes[i-1] - 1) * 100);
+        const volumeSpikes = recentVolumes.map((v, i) => i === 0 ? 0 : (v / recentVolumes[i - 1] - 1) * 100);
         const maxVolumeSpike = Math.max(...volumeSpikes);
         const volumeTrend = (recentVolumeAvg / volumeAvg - 1) * 100;
 
@@ -889,14 +889,14 @@ ${this.getRecommendationDescription(recommendation)}`;
 
     private calculateVolatility(prices: number[]): number {
         if (prices.length < 2) return 0;
-        
-        const returns = prices.slice(1).map((price, i) => 
+
+        const returns = prices.slice(1).map((price, i) =>
             ((price - prices[i]) / prices[i]) * 100
         );
-        
+
         const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
         const variance = returns.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / returns.length;
-        
+
         return Math.sqrt(variance);
     }
 
@@ -947,11 +947,11 @@ ${this.getRecommendationDescription(recommendation)}`;
     private calculateEMA(prices: number[], period: number): number {
         const multiplier = 2 / (period + 1);
         let ema = prices[0];
-        
+
         for (let i = 1; i < prices.length; i++) {
             ema = (prices[i] - ema) * multiplier + ema;
         }
-        
+
         return ema;
     }
 
@@ -961,14 +961,14 @@ ${this.getRecommendationDescription(recommendation)}`;
         const macdLine = ema12 - ema26;
         const signalLine = this.calculateEMA([macdLine], 9);
         const currentHistogram = macdLine - signalLine;
-        
+
         const previousPrices = prices.slice(0, -1);
         const prevEma12 = this.calculateEMA(previousPrices, 12);
         const prevEma26 = this.calculateEMA(previousPrices, 26);
         const prevMacdLine = prevEma12 - prevEma26;
         const prevSignalLine = this.calculateEMA([prevMacdLine], 9);
         const previousHistogram = prevMacdLine - prevSignalLine;
-        
+
         return { histogram: currentHistogram, previousHistogram };
     }
 
@@ -976,7 +976,7 @@ ${this.getRecommendationDescription(recommendation)}`;
         const sma = this.calculateSMA(prices, period);
         const variance = prices.reduce((sum, price) => sum + Math.pow(price - sma, 2), 0) / period;
         const std = Math.sqrt(variance);
-        
+
         return {
             upper: sma + (stdDev * std),
             middle: sma,
@@ -987,34 +987,34 @@ ${this.getRecommendationDescription(recommendation)}`;
     private calculateVWAP(candlesticks: any[]): number {
         let cumulativeTPV = 0;
         let cumulativeVolume = 0;
-        
+
         for (let i = 0; i < candlesticks.length; i++) {
             const typicalPrice = (candlesticks[i].high + candlesticks[i].low + candlesticks[i].close) / 3;
             cumulativeTPV += typicalPrice * candlesticks[i].volume;
             cumulativeVolume += candlesticks[i].volume;
         }
-        
+
         return cumulativeTPV / cumulativeVolume;
     }
 
     private findSupportResistance(candlesticks: any[]): { nearestSupport: number | undefined; nearestResistance: number | undefined } {
         const supports: number[] = [];
         const resistances: number[] = [];
-        
+
         for (let i = 2; i < candlesticks.length - 2; i++) {
-            if (candlesticks[i].low < candlesticks[i - 1].low && candlesticks[i].low < candlesticks[i - 2].low && 
+            if (candlesticks[i].low < candlesticks[i - 1].low && candlesticks[i].low < candlesticks[i - 2].low &&
                 candlesticks[i].low < candlesticks[i + 1].low && candlesticks[i].low < candlesticks[i + 2].low) {
                 supports.push(candlesticks[i].low);
             }
-            if (candlesticks[i].high > candlesticks[i - 1].high && candlesticks[i].high > candlesticks[i - 2].high && 
+            if (candlesticks[i].high > candlesticks[i - 1].high && candlesticks[i].high > candlesticks[i - 2].high &&
                 candlesticks[i].high > candlesticks[i + 1].high && candlesticks[i].high > candlesticks[i + 2].high) {
                 resistances.push(candlesticks[i].high);
             }
         }
-        
+
         supports.sort((a, b) => Math.abs(candlesticks[candlesticks.length - 1].close - a) - Math.abs(candlesticks[candlesticks.length - 1].close - b));
         resistances.sort((a, b) => Math.abs(candlesticks[candlesticks.length - 1].close - a) - Math.abs(candlesticks[candlesticks.length - 1].close - b));
-        
+
         return {
             nearestSupport: supports[0],
             nearestResistance: resistances[0]
@@ -1110,7 +1110,7 @@ ${this.getRecommendationDescription(recommendation)}`;
 
         const priceChanges = recentCandles.map((candle, i) => {
             if (i === 0) return 0;
-            return ((candle.close - recentCandles[i-1].close) / recentCandles[i-1].close) * 100;
+            return ((candle.close - recentCandles[i - 1].close) / recentCandles[i - 1].close) * 100;
         });
 
         const momentum = priceChanges.reduce((sum, change) => sum + change, 0) / priceChanges.length;
@@ -1119,11 +1119,11 @@ ${this.getRecommendationDescription(recommendation)}`;
 
     private analyzeHolderBehavior(holders: HoldersResponse): HolderAnalysis[] {
         const analyses: HolderAnalysis[] = [];
-        
+
         const sortedHolders = [...holders.holders].sort((a, b) => b.balance - a.balance);
-        
+
         const totalSupply = sortedHolders.reduce((sum, holder) => sum + holder.balance, 0);
-        
+
         sortedHolders.forEach((holder, index) => {
             const percentage = (holder.balance / totalSupply) * 100;
             const analysis: HolderAnalysis = {
@@ -1164,7 +1164,7 @@ ${this.getRecommendationDescription(recommendation)}`;
 
         const priceDrops = recentCandles.map((candle, i) => {
             if (i === 0) return 0;
-            return ((candle.close - recentCandles[i-1].close) / recentCandles[i-1].close) * 100;
+            return ((candle.close - recentCandles[i - 1].close) / recentCandles[i - 1].close) * 100;
         });
 
         const allTimeHigh = Math.max(...minuteData.candlestickData.map(c => c.high));
@@ -1178,7 +1178,7 @@ ${this.getRecommendationDescription(recommendation)}`;
 
         const recentPriceChanges = recentCandles.slice(-5).map((candle, i, arr) => {
             if (i === 0) return 0;
-            return Math.abs((candle.close - arr[i-1].close) / arr[i-1].close) * 100;
+            return Math.abs((candle.close - arr[i - 1].close) / arr[i - 1].close) * 100;
         });
 
         const isFlatlining = recentPriceChanges.every(change => change < 0.1);
@@ -1186,9 +1186,9 @@ ${this.getRecommendationDescription(recommendation)}`;
         const hasVolumeDeath = recentVolumeAvg === 0 || volumeDrop > 95;
         const hasNoRecovery = priceDrops.slice(-5).every(drop => drop <= 0.1);
 
-        return (hasMassiveDrop && hasVolumeDeath) || 
-               (dropFromATH > 70 && hasNoRecovery && isFlatlining) || 
-               (recentVolumeAvg === 0 && isFlatlining);
+        return (hasMassiveDrop && hasVolumeDeath) ||
+            (dropFromATH > 70 && hasNoRecovery && isFlatlining) ||
+            (recentVolumeAvg === 0 && isFlatlining);
     }
 
     private detectSuspiciousPatterns(
@@ -1208,12 +1208,12 @@ ${this.getRecommendationDescription(recommendation)}`;
         const recentCandles = minuteData.candlestickData.slice(-30);
         const priceChanges = recentCandles.map((candle, i) => {
             if (i === 0) return 0;
-            return ((candle.close - recentCandles[i-1].close) / recentCandles[i-1].close) * 100;
+            return ((candle.close - recentCandles[i - 1].close) / recentCandles[i - 1].close) * 100;
         });
 
         const maxPriceChange = Math.max(...priceChanges);
         const minPriceChange = Math.min(...priceChanges);
-        
+
         if (maxPriceChange > 500) {
             patterns.push("⚠️ Extreme pump detected (>500% spike)");
             riskScore += 60;
@@ -1242,7 +1242,7 @@ ${this.getRecommendationDescription(recommendation)}`;
         const holderAnalyses = this.analyzeHolderBehavior(holders);
         const topHolder = holders.holders[0];
         const totalSupply = holders.holders.reduce((sum, h) => sum + h.balance, 0);
-        
+
         if (topHolder) {
             const topHolderPercentage = (topHolder.balance / totalSupply) * 100;
             if (topHolderPercentage > 90) {
@@ -1254,8 +1254,8 @@ ${this.getRecommendationDescription(recommendation)}`;
             }
         }
 
-        if (holderAnalyses.some(h => h.riskLevel === 'extreme') && 
-            maxPriceChange > 100 && 
+        if (holderAnalyses.some(h => h.riskLevel === 'extreme') &&
+            maxPriceChange > 100 &&
             minPriceChange < -20) {
             patterns.push("🚨 Rug pull in progress");
             riskScore += 90;
@@ -1294,7 +1294,7 @@ ${this.getRecommendationDescription(recommendation)}`;
             opportunities.shortTerm.potential += 25;
             opportunities.shortTerm.reasoning.push("Strong technical indicators for quick gains");
         }
-        
+
         if (liquidity.score < 25) {
             opportunities.shortTerm.potential -= 40;
             opportunities.shortTerm.reasoning.push("Very low liquidity - high exit risk");
@@ -1304,7 +1304,7 @@ ${this.getRecommendationDescription(recommendation)}`;
             opportunities.midTerm.potential += 20;
             opportunities.midTerm.reasoning.push("Decent technical setup with adequate liquidity");
         }
-        
+
         if (concentration.score < 15) {
             opportunities.midTerm.potential -= 30;
             opportunities.midTerm.reasoning.push("Extreme concentration - high rug pull risk");

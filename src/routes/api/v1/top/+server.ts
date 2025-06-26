@@ -3,15 +3,13 @@ import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ request }) => {
   try {
-    // Get API key from Authorization header
     const authHeader = request.headers.get('authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       throw error(401, 'Missing or invalid authorization header');
     }
 
     const apiKey = authHeader.replace('Bearer ', '');
-    
-    // Make request to Rugplay API
+
     const response = await fetch('https://rugplay.com/api/v1/top', {
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -22,7 +20,7 @@ export const GET: RequestHandler = async ({ request }) => {
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Rugplay API error:', response.status, response.statusText, errorText);
-      
+
       if (response.status === 401) {
         throw error(401, 'Invalid API key');
       }
@@ -36,17 +34,15 @@ export const GET: RequestHandler = async ({ request }) => {
     return json(data);
   } catch (err) {
     console.error('Top coins API error:', err);
-    
-    // Handle SvelteKit errors
+
     if (err && typeof err === 'object' && 'status' in err) {
       throw err;
     }
-    
-    // Handle other errors
+
     if (err instanceof Error) {
       throw error(500, `Server error: ${err.message}`);
     }
-    
+
     throw error(500, 'Internal server error');
   }
 }; 

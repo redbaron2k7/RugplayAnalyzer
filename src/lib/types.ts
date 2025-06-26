@@ -27,7 +27,7 @@ export interface CandlestickData {
   close: number;
   volume: number;
   price: number;
-  timestamp: number;  // Unix timestamp in milliseconds
+  timestamp: number;
 }
 
 export interface VolumeData {
@@ -149,74 +149,74 @@ export type RiskLevel = 'VERY_LOW' | 'LOW' | 'MEDIUM' | 'HIGH' | 'VERY_HIGH';
 export type Recommendation = 'STRONG_BUY' | 'BUY' | 'HOLD' | 'SELL' | 'STRONG_SELL';
 
 export interface TradingOpportunity {
-    potential: number;
-    reasoning: string[];
+  potential: number;
+  reasoning: string[];
 }
 
 export interface TradingOpportunities {
-    shortTerm: TradingOpportunity;
-    midTerm: TradingOpportunity;
-    longTerm: TradingOpportunity;
+  shortTerm: TradingOpportunity;
+  midTerm: TradingOpportunity;
+  longTerm: TradingOpportunity;
 }
 
 export interface RugPullIndicator {
-    name: string;
-    severity: 'low' | 'medium' | 'high' | 'critical';
-    description: string;
-    value?: number | string;
-    timestamp?: number;
+  name: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  description: string;
+  value?: number | string;
+  timestamp?: number;
 }
 
 export interface RugPullAnalysis {
-    overallRisk: number;  // 0-100
-    riskLevel: 'low' | 'medium' | 'high' | 'critical';
-    shortDescription: string;
-    indicators: RugPullIndicator[];
-    timeToRugPull?: number;  // Estimated minutes until potential rug pull, if high risk
-    suggestedAction: string;
+  overallRisk: number;
+  riskLevel: 'low' | 'medium' | 'high' | 'critical';
+  shortDescription: string;
+  indicators: RugPullIndicator[];
+  timeToRugPull?: number;
+  suggestedAction: string;
 }
 
 export interface AnalysisResult {
-    coin: CoinDetailsResponse['coin'];
-    recommendation: Recommendation;
-    riskLevel: RiskLevel;
-    confidence: number;
-    summary: string;
-    rugPullAnalysis: RugPullAnalysis;  // Added rug pull analysis
-    factors: {
-        technical: {
-            score: number;
-            reasoning: string;
-            indicators: string[];
-        };
-        fundamental: {
-            score: number;
-            reasoning: string;
-            signals: string[];
-        };
-        sentiment: {
-            score: number;
-            reasoning: string;
-            metrics: Record<string, number>;
-        };
-        liquidity: {
-            score: number;
-            reasoning: string;
-            warnings: string[];
-        };
-        concentration: {
-            score: number;
-            reasoning: string;
-            risks: string[];
-        };
+  coin: CoinDetailsResponse['coin'];
+  recommendation: Recommendation;
+  riskLevel: RiskLevel;
+  confidence: number;
+  summary: string;
+  rugPullAnalysis: RugPullAnalysis;
+  factors: {
+    technical: {
+      score: number;
+      reasoning: string;
+      indicators: string[];
     };
-    tradingOpportunities: {
-        shortTerm: { potential: number; reasoning: string[] };
-        midTerm: { potential: number; reasoning: string[] };
-        longTerm: { potential: number; reasoning: string[] };
+    fundamental: {
+      score: number;
+      reasoning: string;
+      signals: string[];
     };
-    warnings: string[];
-    opportunities: string[];
+    sentiment: {
+      score: number;
+      reasoning: string;
+      metrics: Record<string, number>;
+    };
+    liquidity: {
+      score: number;
+      reasoning: string;
+      warnings: string[];
+    };
+    concentration: {
+      score: number;
+      reasoning: string;
+      risks: string[];
+    };
+  };
+  tradingOpportunities: {
+    shortTerm: { potential: number; reasoning: string[] };
+    midTerm: { potential: number; reasoning: string[] };
+    longTerm: { potential: number; reasoning: string[] };
+  };
+  warnings: string[];
+  opportunities: string[];
 }
 
 export interface ApiKeyStorage {
@@ -241,7 +241,6 @@ export interface RugplayApiClient {
   getCoinHolders(symbol: string): Promise<HoldersResponse>;
 }
 
-// New interfaces for caching and monitoring
 export interface CachedData<T> {
   data: T;
   timestamp: number;
@@ -283,5 +282,5 @@ export interface CacheManager {
     totalSize: string;
     oldestEntry: string;
     newestEntry: string;
-      };
-  } 
+  };
+} 

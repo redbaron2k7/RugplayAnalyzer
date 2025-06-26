@@ -6,34 +6,34 @@
         Moon,
         Sun,
         TrendingUp,
-        Shield,
         BarChart3,
-        Settings,
-        Home,
-        Monitor,
         LogOut,
         User,
-        Coffee
+        Coffee,
     } from "lucide-svelte";
     import { mode, setMode } from "mode-watcher";
     import { userStore, monitoringStore } from "$lib/stores";
 
     let mobileMenuOpen = $state(false);
-    let userData = $state<import('$lib/types').UserData>({ 
-        isAuthenticated: false, 
-        apiKey: '', 
-        lastLogin: 0, 
-        watchedCoins: [] 
+    let userData = $state<import("$lib/types").UserData>({
+        isAuthenticated: false,
+        apiKey: "",
+        lastLogin: 0,
+        watchedCoins: [],
     });
-  
+
     let { children } = $props();
 
-    // Subscribe to user store
+    onMount(() => {
+        userStore.loadFromStorage();
+        monitoringStore.loadFromStorage();
+    });
+
     $effect(() => {
-        const unsubscribe = userStore.subscribe(value => {
+        const unsubscribe = userStore.subscribe((value) => {
             userData = value;
         });
-        
+
         return () => unsubscribe();
     });
 
@@ -52,10 +52,9 @@
     }
 
     onMount(() => {
-        // Load user data and monitored coins from storage
         userStore.loadFromStorage();
         monitoringStore.loadFromStorage();
-        
+
         console.log(
             `%c                                       .--                    
                                       .=--:                   
@@ -129,7 +128,9 @@
 
                 <div class="flex items-center space-x-4">
                     {#if userData.isAuthenticated}
-                        <div class="flex items-center space-x-2 text-sm text-muted-foreground">
+                        <div
+                            class="flex items-center space-x-2 text-sm text-muted-foreground"
+                        >
                             <User class="h-4 w-4" />
                             <span>API Connected</span>
                         </div>
@@ -202,8 +203,6 @@
                         Buy me a coffee
                     </a>
 
-
-                    
                     {#if userData.isAuthenticated}
                         <div class="px-3 py-2 text-sm text-muted-foreground">
                             <User class="inline h-4 w-4 mr-2" />
@@ -217,7 +216,7 @@
                             Logout
                         </button>
                     {/if}
-                    
+
                     <div class="px-3 py-2">
                         <button
                             onclick={toggleMode}
@@ -254,11 +253,19 @@
                         Professional crypto analysis powered by Rugplay API
                     </span>
                 </div>
-                <div class="flex items-center space-x-4 text-sm text-muted-foreground">
-                    <a href="/legal/terms" class="hover:text-foreground transition-colors">
+                <div
+                    class="flex items-center space-x-4 text-sm text-muted-foreground"
+                >
+                    <a
+                        href="/legal/terms"
+                        class="hover:text-foreground transition-colors"
+                    >
                         Terms
                     </a>
-                    <a href="/legal/privacy" class="hover:text-foreground transition-colors">
+                    <a
+                        href="/legal/privacy"
+                        class="hover:text-foreground transition-colors"
+                    >
                         Privacy
                     </a>
                     <a

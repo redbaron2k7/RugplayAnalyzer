@@ -35,6 +35,7 @@ function createUserStore() {
       };
       set(newData);
       this.clearStorage();
+      monitoringStore.clearStorage();
     },
 
     addWatchedCoin(symbol: string) {
@@ -85,6 +86,7 @@ function createUserStore() {
         }
       } catch (error) {
         console.error('Failed to load user data:', error);
+        this.logout();
       }
     },
 
@@ -92,7 +94,6 @@ function createUserStore() {
       if (typeof window === 'undefined') return;
       try {
         localStorage.removeItem('rugplay_user_data');
-        localStorage.removeItem('rugplay-api-key');
       } catch (error) {
         console.error('Failed to clear user data:', error);
       }
@@ -125,7 +126,6 @@ function createMonitoringStore() {
         const newCoins = [...coins, newCoin];
         this.saveToStorage(newCoins);
 
-        // Fetch initial data
         this.updateCoin(symbol, apiKey);
 
         return newCoins;

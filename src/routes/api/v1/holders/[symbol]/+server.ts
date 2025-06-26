@@ -3,7 +3,6 @@ import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ request, params }) => {
   try {
-    // Get API key from Authorization header
     const authHeader = request.headers.get('authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       throw error(401, 'Missing or invalid authorization header');
@@ -11,12 +10,11 @@ export const GET: RequestHandler = async ({ request, params }) => {
 
     const apiKey = authHeader.replace('Bearer ', '');
     const { symbol } = params;
-    
+
     if (!symbol) {
       throw error(400, 'Missing coin symbol parameter');
     }
-    
-    // Make request to Rugplay API
+
     const response = await fetch(`https://rugplay.com/api/v1/holders/${encodeURIComponent(symbol)}`, {
       headers: {
         'Authorization': `Bearer ${apiKey}`,
