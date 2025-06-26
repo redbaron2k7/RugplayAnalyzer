@@ -71,6 +71,139 @@ export class CryptoAnalyzer {
 
     constructor(private apiClient: RugplayApiClient) { }
 
+    async analyzeWithIntelligence(coinSymbol: string, forceRefresh: boolean = false): Promise<AnalysisResult> {
+        try {
+            const intelligenceResponse = await fetch(`/api/v1/analysis/${coinSymbol}`, {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' }
+            });
+
+            if (!intelligenceResponse.ok) {
+                return this.analyzeCoin(coinSymbol, forceRefresh);
+            }
+
+            const intelligenceData = await intelligenceResponse.json();
+            return this.processIntelligenceData(intelligenceData, coinSymbol, forceRefresh);
+
+        } catch (error) {
+            console.error('Intelligence analysis failed, falling back to basic analysis:', error);
+            return this.analyzeCoin(coinSymbol, forceRefresh);
+        }
+    }
+
+    private async processIntelligenceData(data: any, coinSymbol: string, forceRefresh: boolean): Promise<AnalysisResult> {
+        const [minuteData, holders] = await Promise.all([
+            this.fetchWithRetry<CoinDetailsResponse>(`/coin/${coinSymbol}`, { timeframe: '1m' }, forceRefresh),
+            this.fetchWithRetry<HoldersResponse>(`/holders/${coinSymbol}`, undefined, forceRefresh)
+        ]);
+
+        this.minuteData = minuteData;
+
+        const enhancedRugPullAnalysis = this.createEnhancedRugPullAnalysis(data);
+
+        const { riskLevel, confidence } = this.calculateIntelligentRiskLevel(data);
+
+        const recommendation = this.generateIntelligentRecommendation(data, riskLevel);
+
+        const technicalAnalysis = this.enhanceTechnicalAnalysis(data, minuteData);
+
+        return {
+            coin: minuteData.coin,
+            recommendation,
+            riskLevel,
+            confidence,
+            summary: this.generateIntelligentSummary(data, recommendation, riskLevel, confidence),
+            rugPullAnalysis: enhancedRugPullAnalysis,
+            factors: {
+                technical: technicalAnalysis,
+                sentiment: this.analyzeSentimentWithIntelligence(data),
+                liquidity: this.analyzeLiquidityWithIntelligence(data),
+                concentration: this.analyzeConcentrationWithIntelligence(data),
+                fundamental: this.analyzeFundamentalWithIntelligence(data)
+            },
+            tradingOpportunities: this.analyzeIntelligentTradingOpportunities(data),
+            warnings: this.generateIntelligentWarnings(data),
+            opportunities: this.generateIntelligentOpportunities(data)
+        };
+    }
+
+    private createEnhancedRugPullAnalysis(data: any): RugPullAnalysis {
+        const rugPullData = data.riskAssessment;
+        const tradingData = data.tradingIntelligence;
+        const holderData = data.holderAnalysis;
+
+        const indicators: RugPullIndicator[] = [];
+        let overallRisk = rugPullData.overallRiskScore || 0;
+
+        if (rugPullData.riskLevel === 'HIGH' || rugPullData.riskLevel === 'CRITICAL') {
+            indicators.push({
+                name: 'Risk Assessment',
+                severity: rugPullData.riskLevel === 'CRITICAL' ? 'critical' : 'high',
+                description: `Market intelligence indicates ${rugPullData.riskLevel.toLowerCase()} risk level`,
+                value: overallRisk
+            });
+        }
+
+        if (holderData.holderBehavior) {
+            const suspiciousHolders = holderData.holderBehavior.filter((h: any) => h.riskScore > 70);
+            if (suspiciousHolders.length > 0) {
+                indicators.push({
+                    name: 'Suspicious Holder Activity',
+                    severity: suspiciousHolders.length > 2 ? 'critical' : 'high',
+                    description: `${suspiciousHolders.length} major holders showing suspicious trading patterns`,
+                    value: suspiciousHolders.length * 20
+                });
+                overallRisk += suspiciousHolders.length * 15;
+            }
+        }
+
+        if (holderData.concentrationRisk === 'high') {
+            const isRapidGrowth = data.basicInfo.change24h > 20 && data.basicInfo.volume24h > 10000;
+            const severity = isRapidGrowth ? 'medium' : 'critical';
+
+            indicators.push({
+                name: 'Concentration Risk',
+                severity,
+                description: `Top holder controls ${holderData.topHolderPercentage.toFixed(1)}% of supply`,
+                value: holderData.topHolderPercentage
+            });
+
+            overallRisk += isRapidGrowth ? 15 : 30;
+        }
+
+        overallRisk = Math.min(100, overallRisk);
+
+        let riskLevel: 'low' | 'medium' | 'high' | 'critical';
+        let suggestedAction: string;
+        let shortDescription: string;
+
+        if (overallRisk >= 80) {
+            riskLevel = 'critical';
+            suggestedAction = 'Immediate exit recommended';
+            shortDescription = 'Critical risk - Multiple severe indicators detected';
+        } else if (overallRisk >= 60) {
+            riskLevel = 'high';
+            suggestedAction = 'Exercise extreme caution, consider exiting';
+            shortDescription = 'High risk - Several concerning indicators present';
+        } else if (overallRisk >= 35) {
+            riskLevel = 'medium';
+            suggestedAction = 'Monitor closely, use tight stop losses';
+            shortDescription = 'Moderate risk - Some indicators require attention';
+        } else {
+            riskLevel = 'low';
+            suggestedAction = 'Standard risk management applies';
+            shortDescription = 'Lower risk - Normal market conditions';
+        }
+
+        return {
+            overallRisk,
+            riskLevel,
+            shortDescription,
+            indicators,
+            suggestedAction
+        };
+    }
+
     private async retryWithBackoff<T>(
         operation: () => Promise<T>,
         endpoint: string,
@@ -1279,13 +1412,6 @@ ${this.getRecommendationDescription(recommendation)}`;
         };
     }
 
-    private calculateStandardDeviation(values: number[]): number {
-        const avg = values.reduce((a, b) => a + b, 0) / values.length;
-        const squareDiffs = values.map(value => Math.pow(value - avg, 2));
-        const avgSquareDiff = squareDiffs.reduce((a, b) => a + b, 0) / squareDiffs.length;
-        return Math.sqrt(avgSquareDiff);
-    }
-
     private analyzeTradingOpportunities(
         technical: any,
         fundamental: any,
@@ -1333,6 +1459,407 @@ ${this.getRecommendationDescription(recommendation)}`;
         opportunities.shortTerm.potential = Math.max(0, Math.min(100, opportunities.shortTerm.potential));
         opportunities.midTerm.potential = Math.max(0, Math.min(100, opportunities.midTerm.potential));
         opportunities.longTerm.potential = Math.max(0, Math.min(100, opportunities.longTerm.potential));
+
+        return opportunities;
+    }
+
+    private calculateIntelligentRiskLevel(data: any): { riskLevel: RiskLevel; confidence: number } {
+        const entryExit = data.tradingIntelligence?.entryExit;
+        const marketPsych = data.tradingIntelligence?.marketPsychology;
+        const holderData = data.holderAnalysis;
+        const riskData = data.riskAssessment;
+
+        let riskScore = riskData.overallRiskScore || 50;
+        let confidence = 75;
+
+        if (entryExit) {
+            if (entryExit.currentPosition === 'oversold' && entryExit.confidence > 70) {
+                riskScore -= 15;
+                confidence += 10;
+            } else if (entryExit.currentPosition === 'overbought' && entryExit.confidence > 70) {
+                riskScore += 20;
+                confidence += 5;
+            }
+        }
+
+        if (marketPsych) {
+            if (marketPsych.sentiment === 'extreme_fear' && marketPsych.buyPressure > 60) {
+                riskScore -= 10;
+            } else if (marketPsych.sentiment === 'extreme_greed' && marketPsych.sellPressure > 60) {
+                riskScore += 15;
+            }
+        }
+
+        if (holderData.holderBehavior) {
+            const legitimateWhales = holderData.holderBehavior.filter((h: any) =>
+                h.isWhale && h.riskScore < 30 && h.activityLevel === 'low'
+            );
+            if (legitimateWhales.length > 0) {
+                riskScore -= legitimateWhales.length * 5;
+            }
+        }
+
+        riskScore = Math.max(0, Math.min(100, riskScore));
+
+        let riskLevel: RiskLevel;
+        if (riskScore >= 80) riskLevel = 'VERY_HIGH';
+        else if (riskScore >= 65) riskLevel = 'HIGH';
+        else if (riskScore >= 50) riskLevel = 'MEDIUM';
+        else if (riskScore >= 35) riskLevel = 'LOW';
+        else riskLevel = 'VERY_LOW';
+
+        return { riskLevel, confidence: Math.min(95, confidence) };
+    }
+
+    private generateIntelligentRecommendation(data: any, riskLevel: RiskLevel): Recommendation {
+        const entryExit = data.tradingIntelligence?.entryExit;
+        const marketPsych = data.tradingIntelligence?.marketPsychology;
+        const isGrowthCoin = data.basicInfo.change24h > 20 && data.basicInfo.volume24h > 10000;
+
+        if (riskLevel === 'VERY_HIGH') {
+            return 'STRONG_SELL';
+        }
+
+        if (entryExit && entryExit.confidence > 70) {
+            switch (entryExit.recommendation) {
+                case 'buy':
+                    if (riskLevel === 'LOW' || riskLevel === 'VERY_LOW') {
+                        return isGrowthCoin ? 'STRONG_BUY' : 'BUY';
+                    } else if (riskLevel === 'MEDIUM') {
+                        return 'BUY';
+                    } else {
+                        return 'HOLD';
+                    }
+                case 'sell':
+                    return riskLevel === 'HIGH' ? 'STRONG_SELL' : 'SELL';
+                case 'wait':
+                    return 'HOLD';
+                default:
+                    return 'HOLD';
+            }
+        }
+
+        switch (riskLevel) {
+            case 'VERY_LOW': return isGrowthCoin ? 'STRONG_BUY' : 'BUY';
+            case 'LOW': return 'BUY';
+            case 'MEDIUM': return 'HOLD';
+            case 'HIGH': return 'SELL';
+            default: return 'STRONG_SELL';
+        }
+    }
+
+    private enhanceTechnicalAnalysis(data: any, minuteData: CoinDetailsResponse) {
+        const entryExit = data.tradingIntelligence?.entryExit;
+        const baseAnalysis = this.analyzeTechnical(minuteData, minuteData, minuteData);
+
+        if (!entryExit) return baseAnalysis;
+
+        const enhancedIndicators = [
+            ...baseAnalysis.indicators,
+            `Market Position: ${entryExit.currentPosition}`,
+            `Entry Target: ${entryExit.targetEntry?.toFixed(6) || 'N/A'}`,
+            `Exit Target: ${entryExit.targetExit?.toFixed(6) || 'N/A'}`,
+            `Stop Loss: ${entryExit.stopLoss?.toFixed(6) || 'N/A'}`
+        ];
+
+        if (entryExit.technicalLevels) {
+            const levels = entryExit.technicalLevels;
+            enhancedIndicators.push(
+                `RSI: ${levels.rsi?.toFixed(2) || 'N/A'}`,
+                `Support: ${levels.support?.toFixed(6) || 'N/A'}`,
+                `Resistance: ${levels.resistance?.toFixed(6) || 'N/A'}`,
+                `Volume Profile: ${levels.volumeProfile?.toFixed(2) || 'N/A'}x`
+            );
+        }
+
+        return {
+            score: Math.min(100, baseAnalysis.score + entryExit.confidence * 0.3),
+            reasoning: `${baseAnalysis.reasoning} Enhanced with market intelligence: ${entryExit.currentPosition} position detected.`,
+            indicators: enhancedIndicators
+        };
+    }
+
+    private generateIntelligentSummary(data: any, recommendation: Recommendation, riskLevel: RiskLevel, confidence: number): string {
+        const coin = data.basicInfo;
+        const entryExit = data.tradingIntelligence?.entryExit;
+        const marketPsych = data.tradingIntelligence?.marketPsychology;
+
+        let summary = `Intelligence Analysis for ${coin.name} (${coin.symbol}):\n\n`;
+        summary += `• Current Price: $${coin.currentPrice?.toFixed(6) || 'N/A'}\n`;
+        summary += `• 24h Change: ${coin.change24h?.toFixed(2) || 'N/A'}%\n`;
+        summary += `• Market Cap: $${coin.marketCap?.toLocaleString() || 'N/A'}\n`;
+        summary += `• Risk Level: ${riskLevel}\n`;
+        summary += `• Confidence: ${confidence.toFixed(1)}%\n\n`;
+
+        if (entryExit) {
+            summary += `📊 Technical Position: ${entryExit.currentPosition.replace('_', ' ')}\n`;
+            summary += `🎯 Recommendation: ${entryExit.recommendation} (${entryExit.confidence}% confidence)\n\n`;
+        }
+
+        if (marketPsych) {
+            summary += `🧠 Market Psychology: ${marketPsych.sentiment.replace('_', ' ')}\n`;
+            summary += `📈 Buy Pressure: ${marketPsych.buyPressure?.toFixed(1) || 'N/A'}%\n`;
+            summary += `🐋 Whale Activity: ${marketPsych.whaleActivity?.toFixed(1) || 'N/A'}%\n\n`;
+        }
+
+        summary += this.getRecommendationDescription(recommendation);
+
+        return summary;
+    }
+
+    private analyzeSentimentWithIntelligence(data: any) {
+        const marketPsych = data.tradingIntelligence?.marketPsychology;
+        const baseSentiment = this.analyzeSentiment(data.basicInfo);
+
+        if (!marketPsych) return baseSentiment;
+
+        let enhancedScore = baseSentiment.score;
+        let enhancedReasoning = baseSentiment.reasoning;
+
+        if (marketPsych.sentiment === 'extreme_greed') {
+            enhancedScore -= 15;
+            enhancedReasoning += ' Market showing extreme greed - potential reversal risk.';
+        } else if (marketPsych.sentiment === 'extreme_fear') {
+            enhancedScore += 20;
+            enhancedReasoning += ' Market in extreme fear - potential opportunity.';
+        }
+
+        const pressureDiff = marketPsych.buyPressure - marketPsych.sellPressure;
+        enhancedScore += pressureDiff * 0.2;
+
+        return {
+            score: Math.max(0, Math.min(100, enhancedScore)),
+            reasoning: enhancedReasoning,
+            metrics: {
+                ...baseSentiment.metrics,
+                marketPsychology: marketPsych.sentiment,
+                buyPressure: marketPsych.buyPressure,
+                fearGreedIndex: marketPsych.fearGreedIndex
+            }
+        };
+    }
+
+    private analyzeLiquidityWithIntelligence(data: any) {
+        const liquidityData = data.liquidityAnalysis;
+        const baseLiquidity = this.analyzeLiquidity(data.basicInfo);
+
+        if (!liquidityData) return baseLiquidity;
+
+        let enhancedScore = baseLiquidity.score;
+        let enhancedReasoning = baseLiquidity.reasoning;
+        const enhancedWarnings = [...baseLiquidity.warnings];
+
+        if (liquidityData.liquidityRisk === 'high') {
+            enhancedScore -= 25;
+            enhancedWarnings.push('High liquidity risk detected by market intelligence');
+        } else if (liquidityData.liquidityRisk === 'low') {
+            enhancedScore += 15;
+        }
+
+        if (liquidityData.poolPercentage < 20) {
+            enhancedWarnings.push(`Only ${liquidityData.poolPercentage.toFixed(1)}% of supply in liquidity pool`);
+        }
+
+        return {
+            score: Math.max(0, Math.min(100, enhancedScore)),
+            reasoning: enhancedReasoning + ` Pool analysis: ${liquidityData.poolPercentage.toFixed(1)}% of supply pooled.`,
+            warnings: enhancedWarnings
+        };
+    }
+
+    private analyzeConcentrationWithIntelligence(data: any) {
+        const holderData = data.holderAnalysis;
+        const baseConcentration = this.analyzeConcentration({
+            totalHolders: 100,
+            holders: []
+        });
+
+        if (!holderData) return baseConcentration;
+
+        let enhancedScore = 50;
+        let enhancedReasoning = '';
+        const enhancedRisks = [];
+
+        if (holderData.topHolderPercentage > 50) {
+            enhancedScore -= 30;
+            enhancedRisks.push(`Top holder controls ${holderData.topHolderPercentage.toFixed(1)}% of supply`);
+        } else if (holderData.topHolderPercentage > 20) {
+            enhancedScore -= 15;
+            enhancedRisks.push(`Moderate concentration with top holder at ${holderData.topHolderPercentage.toFixed(1)}%`);
+        }
+
+        if (holderData.top5HolderPercentage > 80) {
+            enhancedScore -= 25;
+            enhancedRisks.push(`Top 5 holders control ${holderData.top5HolderPercentage.toFixed(1)}% of supply`);
+        }
+
+        if (holderData.holderBehavior) {
+            const suspiciousHolders = holderData.holderBehavior.filter((h: any) => h.riskScore > 50);
+            if (suspiciousHolders.length > 0) {
+                enhancedScore -= suspiciousHolders.length * 10;
+                enhancedRisks.push(`${suspiciousHolders.length} major holders showing concerning patterns`);
+            }
+        }
+
+        enhancedReasoning = `Concentration analysis based on on-chain intelligence. ${holderData.concentrationRisk} risk level.`;
+
+        return {
+            score: Math.max(0, Math.min(100, enhancedScore)),
+            reasoning: enhancedReasoning,
+            risks: enhancedRisks
+        };
+    }
+
+    private analyzeFundamentalWithIntelligence(data: any) {
+        const baseFundamental = this.analyzeFundamental(data.basicInfo, { coins: [] }, {
+            coins: [],
+            total: 0,
+            page: 1,
+            limit: 10,
+            totalPages: 0
+        });
+
+        const creatorProfile = data.intelligence?.creatorProfile;
+        const marketPosition = data.intelligence?.marketPosition;
+
+        let enhancedScore = baseFundamental.score;
+        const enhancedSignals = [...baseFundamental.signals];
+
+        if (creatorProfile?.name && creatorProfile.name !== 'Anonymous') {
+            enhancedScore += 10;
+            enhancedSignals.push('Identified creator adds credibility');
+        }
+
+        if (marketPosition === 'trending') {
+            enhancedScore += 15;
+            enhancedSignals.push('Coin in trending category');
+        } else if (marketPosition === 'moon') {
+            enhancedScore += 5;
+            enhancedSignals.push('Coin marked as potential moonshot');
+        }
+
+        return {
+            score: Math.max(0, Math.min(100, enhancedScore)),
+            reasoning: baseFundamental.reasoning + ' Enhanced with creator and market position analysis.',
+            signals: enhancedSignals
+        };
+    }
+
+    private analyzeIntelligentTradingOpportunities(data: any) {
+        const entryExit = data.tradingIntelligence?.entryExit;
+        const marketPsych = data.tradingIntelligence?.marketPsychology;
+
+        const baseOpportunities = this.analyzeTradingOpportunities({}, {}, {}, {});
+
+        if (!entryExit) return baseOpportunities;
+
+        let shortTermPotential = 50;
+        const shortTermReasoning = [];
+
+        if (entryExit.currentPosition === 'oversold' && entryExit.confidence > 70) {
+            shortTermPotential += 30;
+            shortTermReasoning.push('Strong oversold signal with high confidence');
+        } else if (entryExit.currentPosition === 'accumulation_zone') {
+            shortTermPotential += 20;
+            shortTermReasoning.push('Price in accumulation zone');
+        }
+
+        if (marketPsych?.buyPressure > 70) {
+            shortTermPotential += 15;
+            shortTermReasoning.push('Strong buying pressure detected');
+        }
+
+        let midTermPotential = 40;
+        const midTermReasoning = [];
+
+        if (entryExit.technicalLevels?.rsi < 40) {
+            midTermPotential += 20;
+            midTermReasoning.push('RSI indicates good entry opportunity');
+        }
+
+        if (marketPsych?.sentiment === 'fear' && marketPsych.momentum > 0) {
+            midTermPotential += 25;
+            midTermReasoning.push('Fear sentiment with positive momentum');
+        }
+
+        let longTermPotential = 30;
+        const longTermReasoning = [];
+
+        if (data.riskAssessment?.stabilityScore > 70) {
+            longTermPotential += 25;
+            longTermReasoning.push('High stability score indicates sustainable growth potential');
+        }
+
+        if (data.holderAnalysis?.concentrationRisk === 'low') {
+            longTermPotential += 20;
+            longTermReasoning.push('Low concentration risk supports long-term holding');
+        }
+
+        return {
+            shortTerm: {
+                potential: Math.min(100, shortTermPotential),
+                reasoning: shortTermReasoning
+            },
+            midTerm: {
+                potential: Math.min(100, midTermPotential),
+                reasoning: midTermReasoning
+            },
+            longTerm: {
+                potential: Math.min(100, longTermPotential),
+                reasoning: longTermReasoning
+            }
+        };
+    }
+
+    private generateIntelligentWarnings(data: any): string[] {
+        const warnings = [];
+        const riskData = data.riskAssessment;
+        const holderData = data.holderAnalysis;
+        const tradingData = data.tradingIntelligence;
+
+        if (riskData?.riskLevel === 'HIGH' || riskData?.riskLevel === 'CRITICAL') {
+            warnings.push(`${riskData.riskLevel} risk level detected by market intelligence`);
+        }
+
+        if (holderData?.holderBehavior) {
+            const suspiciousCount = holderData.holderBehavior.filter((h: any) => h.suspiciousPatterns?.length > 0).length;
+            if (suspiciousCount > 0) {
+                warnings.push(`${suspiciousCount} major holders showing suspicious trading patterns`);
+            }
+        }
+
+        if (tradingData?.marketPsychology?.sentiment === 'extreme_greed') {
+            warnings.push('Market in extreme greed - consider taking profits');
+        }
+
+        if (tradingData?.entryExit?.currentPosition === 'overbought') {
+            warnings.push('Technical analysis indicates overbought conditions');
+        }
+
+        return warnings;
+    }
+
+    private generateIntelligentOpportunities(data: any): string[] {
+        const opportunities = [];
+        const entryExit = data.tradingIntelligence?.entryExit;
+        const marketPsych = data.tradingIntelligence?.marketPsychology;
+        const riskData = data.riskAssessment;
+
+        if (entryExit?.currentPosition === 'oversold' && entryExit.confidence > 70) {
+            opportunities.push(`Strong oversold signal - potential entry opportunity (${entryExit.confidence}% confidence)`);
+        }
+
+        if (marketPsych?.sentiment === 'extreme_fear' && marketPsych.buyPressure > 60) {
+            opportunities.push('Market fear with strong buying pressure - contrarian opportunity');
+        }
+
+        if (riskData?.stabilityScore > 70 && data.basicInfo?.change24h > 10) {
+            opportunities.push('High stability with positive momentum - quality growth opportunity');
+        }
+
+        if (marketPsych?.tradingIntensity === 'high' && marketPsych.buyPressure > 65) {
+            opportunities.push('High trading intensity with buy dominance');
+        }
 
         return opportunities;
     }
