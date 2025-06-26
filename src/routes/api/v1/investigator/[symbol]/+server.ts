@@ -83,7 +83,7 @@ interface CoinResponse {
     majorHolderAnalysis: HolderAnalysis[];
 }
 
-async function fetchInvestigatorData(symbol: string, apiKey: string): Promise<CoinResponse> {
+async function fetchInvestigatorData(symbol: string): Promise<CoinResponse> {
     try {
         const coinResponse = await fetch(`https://api.rugstats.top/coins/${symbol}`, {
             headers: {
@@ -114,7 +114,6 @@ async function fetchInvestigatorData(symbol: string, apiKey: string): Promise<Co
                 console.log(`Fetching trades chunk at offset ${offset}`);
                 const tradesResponse = await fetch(`https://api.rugstats.top/trades?limit=${CHUNK_SIZE}&offset=${offset}`, {
                     headers: {
-                        'Authorization': `Bearer ${apiKey}`,
                         'Content-Type': 'application/json'
                     }
                 });
@@ -155,7 +154,6 @@ async function fetchInvestigatorData(symbol: string, apiKey: string): Promise<Co
                 console.log(`Fetching trades for ${majorHolderIds.length} holders at offset ${offset}`);
                 const tradesResponse = await fetch(`https://api.rugstats.top/trades?limit=${CHUNK_SIZE}&offset=${offset}`, {
                     headers: {
-                        'Authorization': `Bearer ${apiKey}`,
                         'Content-Type': 'application/json'
                     }
                 });
@@ -233,14 +231,12 @@ async function fetchInvestigatorData(symbol: string, apiKey: string): Promise<Co
                         const [historyResponse, riskResponse] = await Promise.all([
                             fetch(`https://api.rugstats.top/history/${coinSymbol}`, {
                                 headers: {
-                                    'Authorization': `Bearer ${apiKey}`,
                                     'Content-Type': 'application/json'
                                 },
                                 signal: controller.signal
                             }),
                             fetch(`https://api.rugstats.top/risk/${coinSymbol}`, {
                                 headers: {
-                                    'Authorization': `Bearer ${apiKey}`,
                                     'Content-Type': 'application/json'
                                 },
                                 signal: controller.signal
@@ -839,13 +835,8 @@ export const GET: RequestHandler = async ({ params, request }) => {
         throw error(401, 'Missing API key');
     }
 
-    const apiKey = authHeader.replace('Bearer ', '');
-    if (!apiKey) {
-        throw error(401, 'Invalid API key format');
-    }
-
     try {
-        const data = await fetchInvestigatorData(params.symbol, apiKey);
+        const data = await fetchInvestigatorData(params.symbol);
         return json(data);
     } catch (err: any) {
         console.error('Investigation failed:', err);

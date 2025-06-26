@@ -146,7 +146,6 @@
                 `/api/v1/investigator/${searchSymbol.trim().toUpperCase()}`,
                 {
                     headers: {
-                        Authorization: `Bearer ${userData.apiKey}`,
                         "Content-Type": "application/json",
                     },
                 },
