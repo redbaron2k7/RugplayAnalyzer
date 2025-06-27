@@ -28,6 +28,9 @@
     X,
     Key,
     BrainCircuit,
+    Eye,
+    Gem,
+    User,
   } from "lucide-svelte";
   import { userStore, monitoringStore, cacheStore } from "$lib/stores";
   import {
@@ -39,6 +42,7 @@
   } from "$lib/utils";
   import { CryptoAnalyzer } from "$lib/analyzer";
   import LoginModal from "$lib/components/LoginModal.svelte";
+  import CoinInvestigator from "$lib/components/CoinInvestigator.svelte";
   import type { MonitoredCoin, UserData, AnalysisResult } from "$lib/types";
 
   let newCoinSymbol = $state("");
@@ -61,6 +65,11 @@
   let sortBy = $state<"performance" | "marketCap" | "volume" | "name">(
     "performance",
   );
+  let marketIntelligence = $state<any>(null);
+  let isLoadingIntelligence = $state(false);
+  let mainViewMode = $state<
+    "monitored" | "scanner" | "pump-tracker" | "investigator"
+  >("monitored");
 
   let userData = $state<UserData>({
     isAuthenticated: false,
@@ -77,23 +86,50 @@
     oldestEntry: "None",
   });
 
+  async function loadMarketIntelligence() {
+    if (isLoadingIntelligence) return;
+
+    isLoadingIntelligence = true;
+    try {
+      const response = await fetch("/api/v1/intelligence");
+      if (response.ok) {
+        marketIntelligence = await response.json();
+      }
+    } catch (error) {
+      console.error("Failed to load market intelligence:", error);
+    } finally {
+      isLoadingIntelligence = false;
+    }
+  }
+
   onMount(() => {
     userStore.loadFromStorage();
     monitoringStore.loadFromStorage();
 
     let interval: number | undefined;
+    let intelligenceInterval: number | undefined;
 
     if (userData.isAuthenticated) {
+      loadMarketIntelligence();
+
       interval = setInterval(
         () => {
           monitoringStore.updateAllCoins(userData.apiKey);
         },
         5 * 60 * 1000,
       );
+
+      intelligenceInterval = setInterval(
+        () => {
+          loadMarketIntelligence();
+        },
+        2 * 60 * 1000,
+      );
     }
 
     return () => {
       if (interval) clearInterval(interval);
+      if (intelligenceInterval) clearInterval(intelligenceInterval);
     };
   });
 
@@ -133,8 +169,21 @@
     try {
       const apiClient = createApiClient(userData.apiKey);
       const analyzer = new CryptoAnalyzer(apiClient);
-      const result = await analyzer.analyzeCoin(coinSymbol, forceRefresh);
-      coinAnalysis = result;
+
+      try {
+        const result = await analyzer.analyzeWithIntelligence(
+          coinSymbol,
+          forceRefresh,
+        );
+        coinAnalysis = result;
+      } catch (intelligenceError) {
+        console.warn(
+          "Intelligence analysis failed, using basic analysis:",
+          intelligenceError,
+        );
+        const result = await analyzer.analyzeCoin(coinSymbol, forceRefresh);
+        coinAnalysis = result;
+      }
     } catch (error) {
       console.error("Analysis failed:", error);
       coinAnalysis = null;
@@ -559,15 +608,19 @@
             {#if viewMode === "analysis" && selectedCoin}
               <span class="text-muted-foreground">Analysis:</span>
               {selectedCoin}
-            {:else}
+            {:else if mainViewMode === "monitored"}
               Portfolio Dashboard
+            {:else if mainViewMode === "investigator"}
+              Coin Investigator
             {/if}
           </h1>
           <p class="text-sm text-muted-foreground">
             {#if viewMode === "analysis"}
               Comprehensive analysis and insights
-            {:else}
+            {:else if mainViewMode === "monitored"}
               Real-time monitoring and analysis of your cryptocurrency portfolio
+            {:else if mainViewMode === "investigator"}
+              Deep analysis of coin creators, holders, and trading patterns
             {/if}
           </p>
         </div>
@@ -611,255 +664,435 @@
         class="flex-1 overflow-auto p-4 lg:p-6 bg-gradient-to-br from-background to-muted/20"
       >
         {#if viewMode === "overview"}
-          {#if filteredCoins.length === 0}
-            <div class="text-center py-16">
-              <div class="relative">
-                <div
-                  class="absolute inset-0 bg-gradient-to-r from-primary/20 to-secondary/20 rounded-full blur-3xl"
-                ></div>
-                <Monitor class="relative h-20 w-20 mx-auto text-primary mb-6" />
-              </div>
-              <h3 class="text-2xl font-bold mb-3">Start Monitoring Coins</h3>
-              <p class="text-muted-foreground mb-6 max-w-md mx-auto">
-                Add some cryptocurrencies to your watchlist to get started with
-                comprehensive analysis and monitoring.
-              </p>
-              <div
-                class="inline-flex items-center space-x-2 text-sm text-muted-foreground bg-muted/50 rounded-lg px-4 py-2"
-              >
-                <Search class="h-4 w-4" />
-                <span>Use the search box in the sidebar to add coins</span>
-              </div>
-            </div>
-          {:else}
-            <div
-              class="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 mb-6 lg:mb-8"
+          <!-- Main View Mode Navigation -->
+          <div class="flex space-x-1 mb-6 bg-muted rounded-lg p-1 max-w-2xl">
+            <button
+              onclick={() => (mainViewMode = "monitored")}
+              class="flex-1 px-3 py-2 text-sm rounded-md transition-colors {mainViewMode ===
+              'monitored'
+                ? 'bg-background shadow-sm'
+                : 'hover:bg-background/50'}"
             >
-              <div
-                class="bg-card rounded-xl border p-4 lg:p-6 shadow-sm hover:shadow-md transition-shadow"
-              >
-                <div class="flex items-center space-x-2 mb-2">
-                  <div class="p-2 bg-primary/10 rounded-lg">
-                    <Monitor class="h-4 w-4 text-primary" />
-                  </div>
-                  <span
-                    class="text-xs lg:text-sm font-medium text-muted-foreground"
-                    >Total Coins</span
-                  >
-                </div>
-                <div class="text-xl lg:text-2xl font-bold">
-                  {filteredCoins.length}
-                </div>
-              </div>
-
-              <div
-                class="bg-card rounded-xl border p-4 lg:p-6 shadow-sm hover:shadow-md transition-shadow"
-              >
-                <div class="flex items-center space-x-2 mb-2">
-                  <div class="p-2 bg-green-100 dark:bg-green-900/20 rounded-lg">
-                    <TrendingUp
-                      class="h-4 w-4 text-green-600 dark:text-green-400"
-                    />
-                  </div>
-                  <span
-                    class="text-xs lg:text-sm font-medium text-muted-foreground"
-                    >Gainers</span
-                  >
-                </div>
-                <div
-                  class="text-xl lg:text-2xl font-bold text-green-600 dark:text-green-400"
-                >
-                  {filteredCoins.filter((coin) => (coin.change24h || 0) > 0)
-                    .length}
-                </div>
-              </div>
-
-              <div
-                class="bg-card rounded-xl border p-4 lg:p-6 shadow-sm hover:shadow-md transition-shadow"
-              >
-                <div class="flex items-center space-x-2 mb-2">
-                  <div class="p-2 bg-red-100 dark:bg-red-900/20 rounded-lg">
-                    <TrendingDown
-                      class="h-4 w-4 text-red-600 dark:text-red-400"
-                    />
-                  </div>
-                  <span
-                    class="text-xs lg:text-sm font-medium text-muted-foreground"
-                    >Losers</span
-                  >
-                </div>
-                <div
-                  class="text-xl lg:text-2xl font-bold text-red-600 dark:text-red-400"
-                >
-                  {filteredCoins.filter((coin) => (coin.change24h || 0) < 0)
-                    .length}
-                </div>
-              </div>
-
-              <div
-                class="bg-card rounded-xl border p-4 lg:p-6 shadow-sm hover:shadow-md transition-shadow"
-              >
-                <div class="flex items-center space-x-2 mb-2">
-                  <div class="p-2 bg-blue-100 dark:bg-blue-900/20 rounded-lg">
-                    <Clock class="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                  </div>
-                  <span
-                    class="text-xs lg:text-sm font-medium text-muted-foreground"
-                    >Last Update</span
-                  >
-                </div>
-                <div
-                  class="text-sm lg:text-base font-medium text-blue-600 dark:text-blue-400"
-                >
-                  {getTimeSinceUpdate(lastUpdate)}
-                </div>
-              </div>
-            </div>
-
-            <div
-              class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-6"
+              <Monitor class="h-4 w-4 inline mr-1" />
+              Monitored Coins
+            </button>
+            <button
+              onclick={() => (mainViewMode = "investigator")}
+              class="flex-1 px-3 py-2 text-sm rounded-md transition-colors {mainViewMode ===
+              'investigator'
+                ? 'bg-background shadow-sm'
+                : 'hover:bg-background/50'}"
             >
-              {#each filteredCoins as coin}
-                {@const ChangeIcon = getPriceChangeIcon(coin.change24h || 0)}
+              <Eye class="h-4 w-4 inline mr-1" />
+              Investigator
+            </button>
+          </div>
+
+          <!-- Monitored Coins View -->
+          {#if mainViewMode === "monitored"}
+            {#if filteredCoins.length === 0}
+              <div class="text-center py-16">
+                <div class="relative">
+                  <div
+                    class="absolute inset-0 bg-gradient-to-r from-primary/20 to-secondary/20 rounded-full blur-3xl"
+                  ></div>
+                  <Monitor
+                    class="relative h-20 w-20 mx-auto text-primary mb-6"
+                  />
+                </div>
+                <h3 class="text-2xl font-bold mb-3">Start Monitoring Coins</h3>
+                <p class="text-muted-foreground mb-6 max-w-md mx-auto">
+                  Add some cryptocurrencies to your watchlist to get started
+                  with comprehensive analysis and monitoring.
+                </p>
                 <div
-                  class="bg-card rounded-xl border hover:shadow-lg transition-all duration-200 hover:scale-[1.02] hover:border-primary/20"
+                  class="inline-flex items-center space-x-2 text-sm text-muted-foreground bg-muted/50 rounded-lg px-4 py-2"
                 >
-                  <div class="p-4 lg:p-6">
-                    <div class="flex items-start justify-between mb-4">
-                      <div class="flex items-center space-x-3">
-                        <div class="relative">
-                          <img
-                            src={getCoinImageUrl(coin.icon)}
-                            alt={coin.name}
-                            class="w-10 h-10 lg:w-12 lg:h-12 rounded-full ring-2 ring-primary/10"
-                          />
-                          {#if coin.change24h !== undefined}
-                            <div
-                              class="absolute -bottom-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center {coin.change24h >=
-                              0
-                                ? 'bg-green-100 dark:bg-green-900/30'
-                                : 'bg-red-100 dark:bg-red-900/30'}"
+                  <Search class="h-4 w-4" />
+                  <span>Use the search box in the sidebar to add coins</span>
+                </div>
+              </div>
+            {:else}
+              <!-- Market Intelligence Section -->
+              {#if marketIntelligence}
+                <div class="mb-6 lg:mb-8">
+                  <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-semibold">Market Intelligence</h2>
+                    <button
+                      onclick={loadMarketIntelligence}
+                      disabled={isLoadingIntelligence}
+                      class="text-sm text-muted-foreground hover:text-primary"
+                    >
+                      {#if isLoadingIntelligence}
+                        <Loader2 class="h-4 w-4 animate-spin" />
+                      {:else}
+                        <RefreshCw class="h-4 w-4" />
+                      {/if}
+                    </button>
+                  </div>
+
+                  <!-- Market Alerts -->
+                  {#if marketIntelligence.alerts?.length > 0}
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+                      {#each marketIntelligence.alerts.slice(0, 2) as alert}
+                        <div
+                          class="p-4 rounded-lg border {alert.type === 'danger'
+                            ? 'border-red-200 bg-red-50'
+                            : alert.type === 'warning'
+                              ? 'border-orange-200 bg-orange-50'
+                              : 'border-blue-200 bg-blue-50'}"
+                        >
+                          <div class="flex items-start justify-between">
+                            <div>
+                              <h4
+                                class="font-medium {alert.type === 'danger'
+                                  ? 'text-red-900'
+                                  : alert.type === 'warning'
+                                    ? 'text-orange-900'
+                                    : 'text-blue-900'}"
+                              >
+                                {alert.title}
+                              </h4>
+                              <p
+                                class="text-sm {alert.type === 'danger'
+                                  ? 'text-red-700'
+                                  : alert.type === 'warning'
+                                    ? 'text-orange-700'
+                                    : 'text-blue-700'} mt-1"
+                              >
+                                {alert.message}
+                              </p>
+                            </div>
+                            <span
+                              class="text-xs px-2 py-1 rounded {alert.type ===
+                              'danger'
+                                ? 'bg-red-200 text-red-800'
+                                : alert.type === 'warning'
+                                  ? 'bg-orange-200 text-orange-800'
+                                  : 'bg-blue-200 text-blue-800'}"
+                              >{alert.priority}</span
                             >
-                              {#if coin.change24h >= 0}
-                                <TrendingUp
-                                  class="h-2 w-2 text-green-600 dark:text-green-400"
-                                />
-                              {:else}
-                                <TrendingDown
-                                  class="h-2 w-2 text-red-600 dark:text-red-400"
-                                />
-                              {/if}
-                            </div>
-                          {/if}
+                          </div>
                         </div>
-                        <div>
-                          <h3 class="font-semibold text-base lg:text-lg">
-                            {coin.symbol}
-                          </h3>
-                          <p
-                            class="text-xs lg:text-sm text-muted-foreground truncate max-w-32"
-                          >
-                            {coin.name}
-                          </p>
-                        </div>
-                      </div>
-                      <button
-                        onclick={() => removeCoin(coin.symbol)}
-                        class="text-muted-foreground hover:text-destructive transition-colors p-1.5 rounded-lg hover:bg-destructive/10"
-                        title="Remove coin"
-                      >
-                        <Trash2 class="h-4 w-4" />
-                      </button>
+                      {/each}
                     </div>
+                  {/if}
 
-                    {#if coin.currentPrice !== undefined}
-                      <div class="space-y-4">
-                        <div class="flex items-center justify-between">
-                          <div>
-                            <div class="text-2xl font-bold">
-                              {formatCurrency(coin.currentPrice)}
+                  <!-- Market Overview Stats -->
+                  <div class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
+                    <div class="bg-card rounded-lg border p-3 text-center">
+                      <div class="text-lg font-bold">
+                        {marketIntelligence.marketOverview?.totalCoins || 0}
+                      </div>
+                      <div class="text-xs text-muted-foreground">
+                        Total Coins
+                      </div>
+                    </div>
+                    <div class="bg-card rounded-lg border p-3 text-center">
+                      <div
+                        class="text-lg font-bold {marketIntelligence
+                          .marketOverview?.marketSentiment === 'bullish'
+                          ? 'text-green-600'
+                          : marketIntelligence.marketOverview
+                                ?.marketSentiment === 'bearish'
+                            ? 'text-red-600'
+                            : 'text-gray-600'}"
+                      >
+                        {marketIntelligence.marketOverview?.marketSentiment ||
+                          "N/A"}
+                      </div>
+                      <div class="text-xs text-muted-foreground">Sentiment</div>
+                    </div>
+                    <div class="bg-card rounded-lg border p-3 text-center">
+                      <div class="text-lg font-bold">
+                        {marketIntelligence.marketOverview
+                          ?.highRiskPercentage || 0}%
+                      </div>
+                      <div class="text-xs text-muted-foreground">High Risk</div>
+                    </div>
+                    <div class="bg-card rounded-lg border p-3 text-center">
+                      <div class="text-lg font-bold text-green-600">
+                        {marketIntelligence.marketOverview?.gainersCount || 0}
+                      </div>
+                      <div class="text-xs text-muted-foreground">Gainers</div>
+                    </div>
+                    <div class="bg-card rounded-lg border p-3 text-center">
+                      <div class="text-lg font-bold text-red-600">
+                        {marketIntelligence.marketOverview?.losersCount || 0}
+                      </div>
+                      <div class="text-xs text-muted-foreground">Losers</div>
+                    </div>
+                  </div>
+
+                  <!-- Top Opportunities -->
+                  {#if marketIntelligence.opportunities?.length > 0}
+                    <div class="bg-card rounded-lg border p-4">
+                      <h3 class="font-medium mb-3 flex items-center">
+                        <Target class="h-4 w-4 mr-2 text-primary" />
+                        Top Opportunities
+                      </h3>
+                      <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        {#each marketIntelligence.opportunities.slice(0, 3) as opportunity}
+                          <div
+                            class="p-3 bg-green-50 rounded-lg border border-green-200"
+                          >
+                            <div class="font-medium text-sm">
+                              {opportunity.symbol}
                             </div>
+                            <div class="text-xs text-muted-foreground">
+                              {opportunity.opportunityType.replace("_", " ")}
+                            </div>
+                            <div
+                              class="text-xs font-medium text-green-700 mt-1"
+                            >
+                              Score: {opportunity.opportunityScore}
+                            </div>
+                          </div>
+                        {/each}
+                      </div>
+                    </div>
+                  {/if}
+                </div>
+              {/if}
+
+              <div
+                class="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 mb-6 lg:mb-8"
+              >
+                <div
+                  class="bg-card rounded-xl border p-4 lg:p-6 shadow-sm hover:shadow-md transition-shadow"
+                >
+                  <div class="flex items-center space-x-2 mb-2">
+                    <div class="p-2 bg-primary/10 rounded-lg">
+                      <Monitor class="h-4 w-4 text-primary" />
+                    </div>
+                    <span
+                      class="text-xs lg:text-sm font-medium text-muted-foreground"
+                      >Total Coins</span
+                    >
+                  </div>
+                  <div class="text-xl lg:text-2xl font-bold">
+                    {filteredCoins.length}
+                  </div>
+                </div>
+
+                <div
+                  class="bg-card rounded-xl border p-4 lg:p-6 shadow-sm hover:shadow-md transition-shadow"
+                >
+                  <div class="flex items-center space-x-2 mb-2">
+                    <div
+                      class="p-2 bg-green-100 dark:bg-green-900/20 rounded-lg"
+                    >
+                      <TrendingUp
+                        class="h-4 w-4 text-green-600 dark:text-green-400"
+                      />
+                    </div>
+                    <span
+                      class="text-xs lg:text-sm font-medium text-muted-foreground"
+                      >Gainers</span
+                    >
+                  </div>
+                  <div
+                    class="text-xl lg:text-2xl font-bold text-green-600 dark:text-green-400"
+                  >
+                    {filteredCoins.filter((coin) => (coin.change24h || 0) > 0)
+                      .length}
+                  </div>
+                </div>
+
+                <div
+                  class="bg-card rounded-xl border p-4 lg:p-6 shadow-sm hover:shadow-md transition-shadow"
+                >
+                  <div class="flex items-center space-x-2 mb-2">
+                    <div class="p-2 bg-red-100 dark:bg-red-900/20 rounded-lg">
+                      <TrendingDown
+                        class="h-4 w-4 text-red-600 dark:text-red-400"
+                      />
+                    </div>
+                    <span
+                      class="text-xs lg:text-sm font-medium text-muted-foreground"
+                      >Losers</span
+                    >
+                  </div>
+                  <div
+                    class="text-xl lg:text-2xl font-bold text-red-600 dark:text-red-400"
+                  >
+                    {filteredCoins.filter((coin) => (coin.change24h || 0) < 0)
+                      .length}
+                  </div>
+                </div>
+
+                <div
+                  class="bg-card rounded-xl border p-4 lg:p-6 shadow-sm hover:shadow-md transition-shadow"
+                >
+                  <div class="flex items-center space-x-2 mb-2">
+                    <div class="p-2 bg-blue-100 dark:bg-blue-900/20 rounded-lg">
+                      <Clock class="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <span
+                      class="text-xs lg:text-sm font-medium text-muted-foreground"
+                      >Last Update</span
+                    >
+                  </div>
+                  <div
+                    class="text-sm lg:text-base font-medium text-blue-600 dark:text-blue-400"
+                  >
+                    {getTimeSinceUpdate(lastUpdate)}
+                  </div>
+                </div>
+              </div>
+
+              <div
+                class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-6"
+              >
+                {#each filteredCoins as coin}
+                  {@const ChangeIcon = getPriceChangeIcon(coin.change24h || 0)}
+                  <div
+                    class="bg-card rounded-xl border hover:shadow-lg transition-all duration-200 hover:scale-[1.02] hover:border-primary/20"
+                  >
+                    <div class="p-4 lg:p-6">
+                      <div class="flex items-start justify-between mb-4">
+                        <div class="flex items-center space-x-3">
+                          <div class="relative">
+                            <img
+                              src={getCoinImageUrl(coin.icon)}
+                              alt={coin.name}
+                              class="w-10 h-10 lg:w-12 lg:h-12 rounded-full ring-2 ring-primary/10"
+                            />
                             {#if coin.change24h !== undefined}
                               <div
-                                class="flex items-center {getChangeColor(
-                                  coin.change24h,
-                                )} mt-1"
+                                class="absolute -bottom-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center {coin.change24h >=
+                                0
+                                  ? 'bg-green-100 dark:bg-green-900/30'
+                                  : 'bg-red-100 dark:bg-red-900/30'}"
                               >
-                                <ChangeIcon class="h-4 w-4 mr-1" />
-                                <span class="font-medium"
-                                  >{formatPercentage(coin.change24h)}</span
-                                >
-                                <span class="text-sm ml-1">24h</span>
+                                {#if coin.change24h >= 0}
+                                  <TrendingUp
+                                    class="h-2 w-2 text-green-600 dark:text-green-400"
+                                  />
+                                {:else}
+                                  <TrendingDown
+                                    class="h-2 w-2 text-red-600 dark:text-red-400"
+                                  />
+                                {/if}
                               </div>
                             {/if}
                           </div>
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-4 text-sm">
-                          {#if coin.marketCap !== undefined}
-                            <div>
-                              <div class="text-muted-foreground">
-                                Market Cap
-                              </div>
-                              <div class="font-medium">
-                                {formatCurrency(coin.marketCap)}
-                              </div>
-                            </div>
-                          {/if}
-                          {#if coin.volume24h !== undefined}
-                            <div>
-                              <div class="text-muted-foreground">
-                                Volume 24h
-                              </div>
-                              <div class="font-medium">
-                                {formatCurrency(coin.volume24h)}
-                              </div>
-                            </div>
-                          {/if}
-                        </div>
-
-                        <div class="pt-3 border-t border-border">
-                          <div class="text-xs text-muted-foreground mb-2">
-                            Last checked: {getTimeSinceUpdate(
-                              coin.lastChecked || 0,
-                            )}
-                          </div>
-
-                          <div class="flex items-center space-x-2">
-                            <button
-                              onclick={() => analyzeSelectedCoin(coin.symbol)}
-                              class="flex-1 inline-flex items-center justify-center rounded-lg text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 bg-gradient-to-r from-primary to-primary/80 text-primary-foreground hover:from-primary/90 hover:to-primary/70 h-9 px-3 shadow-sm hover:shadow-md"
+                          <div>
+                            <h3 class="font-semibold text-base lg:text-lg">
+                              {coin.symbol}
+                            </h3>
+                            <p
+                              class="text-xs lg:text-sm text-muted-foreground truncate max-w-32"
                             >
-                              <BarChart3 class="h-4 w-4 mr-2" />
-                              Analyze
-                            </button>
-                            <button
-                              onclick={() =>
-                                monitoringStore.updateCoin(
-                                  coin.symbol,
-                                  userData.apiKey,
-                                  true,
-                                )}
-                              class="inline-flex items-center justify-center rounded-lg text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 w-9 hover:scale-105"
-                              title="Refresh data"
-                            >
-                              <RefreshCw class="h-4 w-4" />
-                            </button>
+                              {coin.name}
+                            </p>
                           </div>
                         </div>
+                        <button
+                          onclick={() => removeCoin(coin.symbol)}
+                          class="text-muted-foreground hover:text-destructive transition-colors p-1.5 rounded-lg hover:bg-destructive/10"
+                          title="Remove coin"
+                        >
+                          <Trash2 class="h-4 w-4" />
+                        </button>
                       </div>
-                    {:else}
-                      <div
-                        class="flex items-center justify-center py-8 text-muted-foreground"
-                      >
-                        <Loader2 class="h-6 w-6 mr-2 animate-spin" />
-                        <span>Loading market data...</span>
-                      </div>
-                    {/if}
+
+                      {#if coin.currentPrice !== undefined}
+                        <div class="space-y-4">
+                          <div class="flex items-center justify-between">
+                            <div>
+                              <div class="text-2xl font-bold">
+                                {formatCurrency(coin.currentPrice)}
+                              </div>
+                              {#if coin.change24h !== undefined}
+                                <div
+                                  class="flex items-center {getChangeColor(
+                                    coin.change24h,
+                                  )} mt-1"
+                                >
+                                  <ChangeIcon class="h-4 w-4 mr-1" />
+                                  <span class="font-medium"
+                                    >{formatPercentage(coin.change24h)}</span
+                                  >
+                                  <span class="text-sm ml-1">24h</span>
+                                </div>
+                              {/if}
+                            </div>
+                          </div>
+
+                          <div class="grid grid-cols-2 gap-4 text-sm">
+                            {#if coin.marketCap !== undefined}
+                              <div>
+                                <div class="text-muted-foreground">
+                                  Market Cap
+                                </div>
+                                <div class="font-medium">
+                                  {formatCurrency(coin.marketCap)}
+                                </div>
+                              </div>
+                            {/if}
+                            {#if coin.volume24h !== undefined}
+                              <div>
+                                <div class="text-muted-foreground">
+                                  Volume 24h
+                                </div>
+                                <div class="font-medium">
+                                  {formatCurrency(coin.volume24h)}
+                                </div>
+                              </div>
+                            {/if}
+                          </div>
+
+                          <div class="pt-3 border-t border-border">
+                            <div class="text-xs text-muted-foreground mb-2">
+                              Last checked: {getTimeSinceUpdate(
+                                coin.lastChecked || 0,
+                              )}
+                            </div>
+
+                            <div class="flex items-center space-x-2">
+                              <button
+                                onclick={() => analyzeSelectedCoin(coin.symbol)}
+                                class="flex-1 inline-flex items-center justify-center rounded-lg text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 bg-gradient-to-r from-primary to-primary/80 text-primary-foreground hover:from-primary/90 hover:to-primary/70 h-9 px-3 shadow-sm hover:shadow-md"
+                              >
+                                <BarChart3 class="h-4 w-4 mr-2" />
+                                Analyze
+                              </button>
+                              <button
+                                onclick={() =>
+                                  monitoringStore.updateCoin(
+                                    coin.symbol,
+                                    userData.apiKey,
+                                    true,
+                                  )}
+                                class="inline-flex items-center justify-center rounded-lg text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 w-9 hover:scale-105"
+                                title="Refresh data"
+                              >
+                                <RefreshCw class="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      {:else}
+                        <div
+                          class="flex items-center justify-center py-8 text-muted-foreground"
+                        >
+                          <Loader2 class="h-6 w-6 mr-2 animate-spin" />
+                          <span>Loading market data...</span>
+                        </div>
+                      {/if}
+                    </div>
                   </div>
-                </div>
-              {/each}
-            </div>
+                {/each}
+              </div>
+            {/if}
+          {/if}
+
+          <!-- Coin Investigator View -->
+          {#if mainViewMode === "investigator"}
+            <CoinInvestigator
+              onCoinSelect={(symbol) => analyzeSelectedCoin(symbol)}
+            />
           {/if}
         {:else if viewMode === "analysis" && selectedCoin}
           {#if isAnalyzing}
@@ -1485,9 +1718,7 @@
                 {#if isAnalyzingAI}
                   <div class="flex items-center text-muted-foreground py-4">
                     <Loader2 class="h-5 w-5 mr-3 animate-spin" />
-                    <span
-                      >The AI is thinking... this may take a moment.</span
-                    >
+                    <span>The AI is thinking... this may take a moment.</span>
                   </div>
                 {:else if aiAnalysisError}
                   <div
