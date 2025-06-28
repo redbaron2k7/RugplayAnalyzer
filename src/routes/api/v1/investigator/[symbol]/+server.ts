@@ -829,12 +829,7 @@ function calculateRiskScore(
     return Math.max(0, Math.min(100, score));
 }
 
-export const GET: RequestHandler = async ({ params, request }) => {
-    const authHeader = request.headers.get('Authorization');
-    if (!authHeader) {
-        throw error(401, 'Missing API key');
-    }
-
+export const GET: RequestHandler = async ({ params }) => {
     try {
         const data = await fetchInvestigatorData(params.symbol);
         return json(data);
