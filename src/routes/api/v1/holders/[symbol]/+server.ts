@@ -15,7 +15,7 @@ export const GET: RequestHandler = async ({ request, params }) => {
       throw error(400, 'Missing coin symbol parameter');
     }
 
-    const response = await fetch(`https://rugplay.com/api/v1/holders/${encodeURIComponent(symbol)}`, {
+    const response = await fetch(`https://api.rugplay.com/api/v1/holders/${encodeURIComponent(symbol)}`, {
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json'

@@ -21,7 +21,7 @@ export const GET: RequestHandler = async ({ request, params, url }) => {
       throw error(400, { message: 'Invalid timeframe parameter' });
     }
 
-    const response = await fetch(`https://rugplay.com/api/v1/coin/${symbol}?timeframe=${timeframe}`, {
+    const response = await fetch(`https://api.rugplay.com/api/v1/coin/${symbol}?timeframe=${timeframe}`, {
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json'
@@ -41,4 +41,4 @@ export const GET: RequestHandler = async ({ request, params, url }) => {
     }
     throw error(500, { message: 'Internal server error' });
   }
-}; 
+};

@@ -118,11 +118,11 @@
               </button>
             </div>
             <p class="text-xs text-muted-foreground mt-1">
-              Get your API key from <a
-                href="https://rugplay.com/api"
+              Get your API key from <a 
+                href="https://api.rugplay.com/api"
                 target="_blank"
                 rel="noopener noreferrer"
-                class="text-primary hover:underline">rugplay.com/api</a
+                class="text-primary hover:underline">api.rugplay.com/api</a
               >
             </p>
           </div>
