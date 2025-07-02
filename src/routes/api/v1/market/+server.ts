@@ -56,7 +56,7 @@ export const GET: RequestHandler = async ({ request, url }) => {
       limit: limit.toString()
     });
 
-    const response = await fetch(`https://rugplay.com/api/v1/market?${queryParams}`, {
+    const response = await fetch(`https://api.rugplay.com/api/v1/market?${queryParams}`, {
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json'
@@ -76,4 +76,4 @@ export const GET: RequestHandler = async ({ request, url }) => {
     }
     throw error(500, { message: 'Internal server error' });
   }
-}; 
+};

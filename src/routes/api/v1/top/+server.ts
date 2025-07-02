@@ -10,7 +10,7 @@ export const GET: RequestHandler = async ({ request }) => {
 
     const apiKey = authHeader.replace('Bearer ', '');
 
-    const response = await fetch('https://rugplay.com/api/v1/top', {
+    const response = await fetch('https://api.rugplay.com/api/v1/top', {
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json'
@@ -45,4 +45,4 @@ export const GET: RequestHandler = async ({ request }) => {
 
     throw error(500, 'Internal server error');
   }
-}; 
+};

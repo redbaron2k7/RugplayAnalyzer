@@ -1129,6 +1129,7 @@
               </button>
             </div>
           {:else}
+            {@const ChangeIcon = getPriceChangeIcon(coinAnalysis.coin.change24h)}
             <div class="flex-1 overflow-y-auto p-6 space-y-6">
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-4">
@@ -1154,10 +1155,7 @@
                         coinAnalysis.coin.change24h,
                       )}"
                     >
-                      <svelte:component
-                        this={getPriceChangeIcon(coinAnalysis.coin.change24h)}
-                        class="w-4 h-4"
-                      />
+                      <ChangeIcon class="w-4 h-4" />
                       {formatPercentage(coinAnalysis.coin.change24h)}
                     </p>
                   </div>
@@ -1330,7 +1328,7 @@
                         class="bg-primary rounded-full h-2"
                         style="width: {coinAnalysis.tradingOpportunities
                           .shortTerm.potential}%"
-                      />
+                      ></div>
                     </div>
                   </div>
                   <ul class="text-sm space-y-1">
@@ -1358,7 +1356,7 @@
                         class="bg-primary rounded-full h-2"
                         style="width: {coinAnalysis.tradingOpportunities.midTerm
                           .potential}%"
-                      />
+                      ></div>
                     </div>
                   </div>
                   <ul class="text-sm space-y-1">
@@ -1386,7 +1384,7 @@
                         class="bg-primary rounded-full h-2"
                         style="width: {coinAnalysis.tradingOpportunities
                           .longTerm.potential}%"
-                      />
+                      ></div>
                     </div>
                   </div>
                   <ul class="text-sm space-y-1">
@@ -1416,7 +1414,7 @@
                       <div
                         class="bg-primary rounded-full h-2"
                         style="width: {coinAnalysis.factors.technical.score}%"
-                      />
+                      ></div>
                     </div>
                   </div>
                   <div class="space-y-4">
@@ -1455,7 +1453,7 @@
                       <div
                         class="bg-primary rounded-full h-2"
                         style="width: {coinAnalysis.factors.fundamental.score}%"
-                      />
+                      ></div>
                     </div>
                   </div>
                   <div class="space-y-4">
@@ -1545,7 +1543,7 @@
                       <div
                         class="bg-primary rounded-full h-2"
                         style="width: {coinAnalysis.factors.liquidity.score}%"
-                      />
+                      ></div>
                     </div>
                   </div>
                   <div class="space-y-4">
@@ -1633,7 +1631,7 @@
                         class="bg-primary rounded-full h-2"
                         style="width: {coinAnalysis.factors.concentration
                           .score}%"
-                      />
+                      ></div>
                     </div>
                   </div>
                   <div class="space-y-4">
